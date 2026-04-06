@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   getPendingFees, getFees, addFee, updateFeeStatus,
-  getStudents, type Fee, type Student,
+  getStudents, extractError, type Fee, type Student,
 } from '../lib/supabase'
 import PageHeader from '../components/PageHeader'
 import EmptyState from '../components/EmptyState'
@@ -24,7 +24,8 @@ export default function Fees() {
   const [form, setForm]         = useState({ student_id: '', amount: '', due_date: '' })
   const { toast, show, hide }   = useToast()
 
-  const load = async () => {
+  const load = useCallback(async () => {
+    setLoading(true)
     try {
       const [f, s] = await Promise.all([
         tab === 'pending' ? getPendingFees() : getFees(),
@@ -32,11 +33,14 @@ export default function Fees() {
       ])
       setFees(f)
       setStudents(s)
-    } catch { show('Failed to load fees', 'error') }
-    finally { setLoading(false) }
-  }
+    } catch (e) {
+      show(`Failed to load fees: ${extractError(e)}`, 'error')
+    } finally {
+      setLoading(false)
+    }
+  }, [tab, show])
 
-  useEffect(() => { setLoading(true); load() }, [tab])
+  useEffect(() => { load() }, [load])
 
   const handleAdd = async () => {
     if (!form.student_id || !form.amount || !form.due_date) return
@@ -51,19 +55,22 @@ export default function Fees() {
       setForm({ student_id: '', amount: '', due_date: '' })
       setShowForm(false)
       show('Fee assigned successfully')
-      setLoading(true)
       await load()
-    } catch { show('Failed to assign fee', 'error') }
-    finally { setSaving(false) }
+    } catch (e) {
+      show(`Failed to assign fee: ${extractError(e)}`, 'error')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleMarkPaid = async (fee: Fee) => {
     try {
       await updateFeeStatus(fee.id, 'paid')
       show(`Marked as paid — ${fee.students?.name}`)
-      setLoading(true)
       await load()
-    } catch { show('Failed to update status', 'error') }
+    } catch (e) {
+      show(`Failed to update status: ${extractError(e)}`, 'error')
+    }
   }
 
   const sendReminder = (fee: Fee) => {
@@ -86,8 +93,7 @@ export default function Fees() {
   const pendingFees    = fees.filter(f => f.status === 'pending')
   const totalPending   = pendingFees.reduce((sum, f) => sum + f.amount, 0)
   const totalCollected = fees.filter(f => f.status === 'paid').reduce((sum, f) => sum + f.amount, 0)
-
-  const isOverdue = (due_date: string) => new Date(due_date) < new Date(new Date().toDateString())
+  const isOverdue      = (due_date: string) => new Date(due_date) < new Date(new Date().toDateString())
 
   return (
     <div>
@@ -218,26 +224,18 @@ export default function Fees() {
           {fees.map(fee => {
             const overdue = fee.status === 'pending' && isOverdue(fee.due_date)
             return (
-              <div
-                key={fee.id}
-                className={`card p-4 ${overdue ? 'border-red-200 bg-red-50/30' : ''}`}
-              >
+              <div key={fee.id} className={`card p-4 ${overdue ? 'border-red-200 bg-red-50/30' : ''}`}>
                 <div className="flex items-start gap-3">
-                  {/* Avatar */}
                   <div className="w-9 h-9 rounded-xl bg-navy-100 text-navy-700 font-bold text-sm flex items-center justify-center shrink-0 select-none">
                     {fee.students?.name?.[0]?.toUpperCase() ?? '?'}
                   </div>
-
-                  {/* Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-semibold text-navy-900">{fee.students?.name}</span>
                       <span className={fee.status === 'paid' ? 'badge-paid' : 'badge-pending'}>
                         {fee.status}
                       </span>
-                      {overdue && (
-                        <span className="badge bg-red-100 text-red-600">overdue</span>
-                      )}
+                      {overdue && <span className="badge bg-red-100 text-red-600">overdue</span>}
                     </div>
                     <p className="text-xs text-slate-400 mt-0.5">
                       {fee.students?.batch} · Due {new Date(fee.due_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
@@ -247,8 +245,6 @@ export default function Fees() {
                     </p>
                   </div>
                 </div>
-
-                {/* Actions */}
                 {fee.status === 'pending' && (
                   <div className="flex gap-2 mt-3 pt-3 border-t border-slate-100">
                     <button onClick={() => sendReminder(fee)} className="btn-warning flex-1 py-2">
