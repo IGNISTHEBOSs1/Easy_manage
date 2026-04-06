@@ -1,37 +1,39 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import StatCard from '../components/StatCard'
-import { getStudents, getPendingFees, getTodayAttendance } from '../lib/supabase'
+import { getStudents, getPendingFees, getTodayAttendance, extractError } from '../lib/supabase'
 
 export default function Dashboard() {
   const navigate = useNavigate()
 
-  const [studentCount, setStudentCount] = useState(0)
-  const [pendingCount, setPendingCount]   = useState(0)
-  const [absentCount, setAbsentCount]     = useState(0)
+  const [studentCount,  setStudentCount]  = useState(0)
+  const [pendingCount,  setPendingCount]  = useState(0)
+  const [absentCount,   setAbsentCount]   = useState(0)
   const [pendingAmount, setPendingAmount] = useState(0)
-  const [loading, setLoading]             = useState(true)
+  const [loading,       setLoading]       = useState(true)
+  const [error,         setError]         = useState<string | null>(null)
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const [students, pending, attendance] = await Promise.all([
-          getStudents(),
-          getPendingFees(),
-          getTodayAttendance(),
-        ])
-        setStudentCount(students.length)
-        setPendingCount(pending.length)
-        setPendingAmount(pending.reduce((sum, f) => sum + f.amount, 0))
-        setAbsentCount(attendance.filter((a) => a.status === 'absent').length)
-      } catch (err) {
-        console.error(err)
-      } finally {
-        setLoading(false)
-      }
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const [students, pending, attendance] = await Promise.all([
+        getStudents(),
+        getPendingFees(),
+        getTodayAttendance(),
+      ])
+      setStudentCount(students.length)
+      setPendingCount(pending.length)
+      setPendingAmount(pending.reduce((sum, f) => sum + f.amount, 0))
+      setAbsentCount(attendance.filter(a => a.status === 'absent').length)
+    } catch (e) {
+      setError(extractError(e))
+    } finally {
+      setLoading(false)
     }
-    load()
   }, [])
+
+  useEffect(() => { load() }, [load])
 
   const today = new Date().toLocaleDateString('en-IN', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
@@ -44,6 +46,22 @@ export default function Dashboard() {
         <h1 className="text-xl font-bold text-navy-900">Dashboard</h1>
         <p className="text-sm text-slate-400 mt-0.5">{today}</p>
       </div>
+
+      {/* Error banner */}
+      {error && (
+        <div className="mb-4 bg-red-50 border border-red-200 rounded-2xl px-4 py-3 flex items-start gap-3">
+          <svg className="w-4 h-4 text-red-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+          </svg>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-red-700">Could not load dashboard data</p>
+            <p className="text-xs text-red-500 mt-0.5 break-words font-mono">{error}</p>
+          </div>
+          <button onClick={load} className="shrink-0 text-xs font-medium text-red-600 hover:text-red-800 underline">
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* Stats grid */}
       <div className="grid grid-cols-2 gap-3 mb-6">
