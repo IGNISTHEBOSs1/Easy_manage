@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { getStudents, addStudent, deleteStudent, type Student } from '../lib/supabase'
+import { useCallback, useEffect, useState } from 'react'
+import { getStudents, addStudent, deleteStudent, extractError, type Student } from '../lib/supabase'
 import PageHeader from '../components/PageHeader'
 import EmptyState from '../components/EmptyState'
 import Toast, { useToast } from '../components/Toast'
@@ -15,13 +15,18 @@ export default function Students() {
   const [form, setForm]         = useState({ name: '', phone: '', batch: 'Morning' })
   const { toast, show, hide }   = useToast()
 
-  const load = async () => {
-    try { setStudents(await getStudents()) }
-    catch { show('Failed to load students', 'error') }
-    finally { setLoading(false) }
-  }
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      setStudents(await getStudents())
+    } catch (e) {
+      show(`Failed to load students: ${extractError(e)}`, 'error')
+    } finally {
+      setLoading(false)
+    }
+  }, [show])
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [load])
 
   const handleAdd = async () => {
     if (!form.name.trim() || !form.phone.trim()) return
@@ -32,8 +37,11 @@ export default function Students() {
       setShowForm(false)
       show('Student added successfully')
       await load()
-    } catch { show('Failed to add student', 'error') }
-    finally { setSaving(false) }
+    } catch (e) {
+      show(`Failed to add student: ${extractError(e)}`, 'error')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleDelete = async (id: string, name: string) => {
@@ -42,7 +50,9 @@ export default function Students() {
       await deleteStudent(id)
       show(`${name} removed`)
       await load()
-    } catch { show('Failed to remove student', 'error') }
+    } catch (e) {
+      show(`Failed to remove student: ${extractError(e)}`, 'error')
+    }
   }
 
   const filtered = students.filter(s =>
@@ -184,14 +194,12 @@ export default function Students() {
             if (!list || list.length === 0) return null
             return (
               <div key={batch} className="card overflow-hidden">
-                {/* Batch header */}
                 <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
                   <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
                     {batch} Batch
                   </span>
                   <span className="text-xs text-slate-400">{list.length} student{list.length !== 1 ? 's' : ''}</span>
                 </div>
-                {/* Students */}
                 <div className="divide-y divide-slate-100">
                   {list.map(s => (
                     <div key={s.id} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors">
@@ -202,7 +210,6 @@ export default function Students() {
                         <p className="text-sm font-medium text-navy-900 truncate">{s.name}</p>
                         <p className="text-xs text-slate-400 font-mono mt-0.5">{s.phone}</p>
                       </div>
-                      {/* WhatsApp quick link */}
                       <a
                         href={`https://wa.me/91${s.phone}`}
                         target="_blank"
