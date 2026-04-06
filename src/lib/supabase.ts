@@ -1,9 +1,35 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = 'https://xzhjdpuzhqjvhgikccjt.supabase.co'
+const supabaseUrl     = 'https://xzhjdpuzhqjvhgikccjt.supabase.co'
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh6aGpkcHV6aHFqdmhnaWtjY2p0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzOTk4MzYsImV4cCI6MjA5MDk3NTgzNn0.u4YQoK4LvTviCJShX1tH1MVpAlS9n7iQMHv27fh86Kk'
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+
+// ─── Error helper ─────────────────────────────────────────────────────────────
+// Supabase throws a PostgREST error object {message, code, details, hint}
+// This extracts a human-readable string from any thrown value.
+export function extractError(err: unknown): string {
+  if (!err) return 'Unknown error'
+  if (typeof err === 'string') return err
+  if (typeof err === 'object') {
+    const e = err as Record<string, unknown>
+    if (typeof e.message === 'string' && e.message) return e.message
+    if (typeof e.error === 'string') return e.error
+  }
+  return 'Unknown error'
+}
+
+// ─── Connection check ─────────────────────────────────────────────────────────
+// Returns null on success, or an error string.
+export async function checkConnection(): Promise<string | null> {
+  try {
+    const { error } = await supabase.from('students').select('id').limit(1)
+    if (error) return extractError(error)
+    return null
+  } catch (e) {
+    return extractError(e)
+  }
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -106,12 +132,7 @@ export const updateFeeStatus = async (
 
 export const getTodayAttendance = async (): Promise<Attendance[]> => {
   const today = new Date().toISOString().split('T')[0]
-  const { data, error } = await supabase
-    .from('attendance')
-    .select('*, students(name, phone, batch)')
-    .eq('date', today)
-  if (error) throw error
-  return data ?? []
+  return getAttendanceByDate(today)
 }
 
 export const getAttendanceByDate = async (date: string): Promise<Attendance[]> => {
