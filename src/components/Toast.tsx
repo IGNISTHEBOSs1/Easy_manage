@@ -10,7 +10,7 @@ export default function Toast({ message, type = 'success', onClose }: ToastProps
   useEffect(() => {
     const timer = setTimeout(onClose, 3500)
     return () => clearTimeout(timer)
-  }, [onClose])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const styles = {
     success: 'bg-emerald-600 text-white',
