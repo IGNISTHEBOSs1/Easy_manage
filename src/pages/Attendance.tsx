@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   getStudents, getAttendanceByDate, upsertAttendance,
-  type Student,
+  extractError, type Student,
 } from '../lib/supabase'
 import PageHeader from '../components/PageHeader'
 import EmptyState from '../components/EmptyState'
@@ -23,7 +23,7 @@ export default function AttendancePage() {
 
   const batchStudents = students.filter(s => s.batch === selectedBatch)
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true)
     setSaved(false)
     try {
@@ -32,18 +32,18 @@ export default function AttendancePage() {
         getAttendanceByDate(date),
       ])
       setStudents(allStudents)
-
       const map: AttendanceMap = {}
-      // Pre-fill from saved records
       records.forEach(r => { map[r.student_id] = r.status })
-      // Default un-saved students to present
       allStudents.forEach(s => { if (!(s.id in map)) map[s.id] = 'present' })
       setAttendance(map)
-    } catch { show('Failed to load attendance', 'error') }
-    finally { setLoading(false) }
-  }
+    } catch (e) {
+      show(`Failed to load attendance: ${extractError(e)}`, 'error')
+    } finally {
+      setLoading(false)
+    }
+  }, [date, show])
 
-  useEffect(() => { load() }, [date])
+  useEffect(() => { load() }, [load])
 
   const toggle = (id: string) => {
     setSaved(false)
@@ -80,8 +80,11 @@ export default function AttendancePage() {
       await upsertAttendance(records)
       setSaved(true)
       show('Attendance saved successfully')
-    } catch { show('Failed to save attendance', 'error') }
-    finally { setSaving(false) }
+    } catch (e) {
+      show(`Failed to save attendance: ${extractError(e)}`, 'error')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const notifyAbsentees = () => {
@@ -107,8 +110,7 @@ export default function AttendancePage() {
   const presentCount = batchStudents.filter(s => attendance[s.id] !== 'absent').length
   const absentCount  = batchStudents.length - presentCount
   const pct          = batchStudents.length > 0 ? Math.round((presentCount / batchStudents.length) * 100) : 0
-
-  const isToday = date === new Date().toISOString().split('T')[0]
+  const isToday      = date === new Date().toISOString().split('T')[0]
 
   return (
     <div>
@@ -238,7 +240,7 @@ export default function AttendancePage() {
       ) : (
         <>
           <p className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-2">
-            Tap to toggle · Tap card to mark absent
+            Tap card to toggle present / absent
           </p>
           <div className="space-y-2 mb-4">
             {batchStudents.map(s => {
@@ -253,20 +255,15 @@ export default function AttendancePage() {
                       : 'border-red-200 bg-red-50/50 hover:bg-red-50'
                   }`}
                 >
-                  {/* Avatar */}
                   <div className={`w-9 h-9 rounded-xl font-bold text-sm flex items-center justify-center shrink-0 select-none transition-colors ${
                     isPresent ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'
                   }`}>
                     {s.name[0].toUpperCase()}
                   </div>
-
-                  {/* Name */}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-navy-900">{s.name}</p>
                     <p className="text-xs text-slate-400 font-mono mt-0.5">{s.phone}</p>
                   </div>
-
-                  {/* Status chip */}
                   <div className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors ${
                     isPresent ? 'bg-emerald-500 text-white' : 'bg-red-400 text-white'
                   }`}>
@@ -291,7 +288,6 @@ export default function AttendancePage() {
             })}
           </div>
 
-          {/* Save Button */}
           <button
             onClick={saveAttendance}
             disabled={saving || saved}
