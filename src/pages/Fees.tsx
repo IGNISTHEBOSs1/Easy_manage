@@ -26,18 +26,29 @@ export default function Fees() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    try {
-      const [f, s] = await Promise.all([
-        tab === 'pending' ? getPendingFees() : getFees(),
-        getStudents(),
-      ])
-      setFees(f)
-      setStudents(s)
-    } catch (e) {
-      show(`Failed to load fees: ${extractError(e)}`, 'error')
-    } finally {
-      setLoading(false)
+
+    // Use Promise.allSettled so a failing fees query never prevents students
+    // from loading — students must always appear in the "Assign Fee" dropdown.
+    const [feesResult, studentsResult] = await Promise.allSettled([
+      tab === 'pending' ? getPendingFees() : getFees(),
+      getStudents(),
+    ])
+
+    if (feesResult.status === 'fulfilled') {
+      setFees(feesResult.value)
+    } else {
+      show(`Could not load fees: ${extractError(feesResult.reason)}`, 'error')
+      setFees([])
     }
+
+    if (studentsResult.status === 'fulfilled') {
+      setStudents(studentsResult.value)
+    } else {
+      show(`Could not load students: ${extractError(studentsResult.reason)}`, 'error')
+      setStudents([])
+    }
+
+    setLoading(false)
   }, [tab, show])
 
   useEffect(() => { load() }, [load])
@@ -123,7 +134,9 @@ export default function Fees() {
                   value={form.student_id}
                   onChange={e => setForm(f => ({ ...f, student_id: e.target.value }))}
                 >
-                  <option value="">Select student…</option>
+                  <option value="">
+                    {students.length === 0 ? 'No students yet — add one first' : 'Select student…'}
+                  </option>
                   {students.map(s => (
                     <option key={s.id} value={s.id}>{s.name} — {s.batch}</option>
                   ))}
@@ -132,6 +145,11 @@ export default function Fees() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                 </svg>
               </div>
+              {students.length === 0 && !loading && (
+                <p className="text-xs text-amber-600 mt-1">
+                  ⚠ No students found. Go to the Students page and add students first.
+                </p>
+              )}
             </div>
             <div>
               <label className="label">Amount (₹)</label>

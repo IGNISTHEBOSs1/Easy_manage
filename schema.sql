@@ -1,6 +1,6 @@
 -- ============================================================
--- CoachPro — Supabase SQL Schema
--- Run this in: Supabase Dashboard → SQL Editor → New Query
+-- CoachPro — Supabase SQL Schema  (v2 — run this in full)
+-- Supabase Dashboard → SQL Editor → New Query → Run
 -- ============================================================
 
 -- 1. Students
@@ -31,28 +31,25 @@ CREATE TABLE IF NOT EXISTS attendance (
   CONSTRAINT attendance_student_date_unique UNIQUE (student_id, date)
 );
 
--- ── Indexes for performance ────────────────────────────────
-CREATE INDEX IF NOT EXISTS idx_fees_student_id ON fees(student_id);
-CREATE INDEX IF NOT EXISTS idx_fees_status     ON fees(status);
-CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(date);
-CREATE INDEX IF NOT EXISTS idx_attendance_student_id ON attendance(student_id);
+-- ── Indexes ───────────────────────────────────────────────────────────────────
+CREATE INDEX IF NOT EXISTS idx_fees_student_id      ON fees(student_id);
+CREATE INDEX IF NOT EXISTS idx_fees_status          ON fees(status);
+CREATE INDEX IF NOT EXISTS idx_attendance_date      ON attendance(date);
+CREATE INDEX IF NOT EXISTS idx_attendance_student   ON attendance(student_id);
 
--- ── Disable RLS (MVP — no multi-tenant auth yet) ───────────
--- Enable these when you add authentication in v2
+-- ── Disable RLS (single-institute MVP — no multi-tenant auth yet) ─────────────
 ALTER TABLE students   DISABLE ROW LEVEL SECURITY;
 ALTER TABLE fees       DISABLE ROW LEVEL SECURITY;
 ALTER TABLE attendance DISABLE ROW LEVEL SECURITY;
 
--- ── Optional: Seed sample data ────────────────────────────
--- Uncomment to add test students
-/*
-INSERT INTO students (name, phone, batch) VALUES
-  ('Arjun Sharma',   '9876543210', 'Morning'),
-  ('Priya Verma',    '9876543211', 'Morning'),
-  ('Rahul Singh',    '9876543212', 'Afternoon'),
-  ('Sneha Patel',    '9876543213', 'Afternoon'),
-  ('Vikram Joshi',   '9876543214', 'Evening'),
-  ('Anjali Gupta',   '9876543215', 'Evening'),
-  ('Karan Mehta',    '9876543216', 'Weekend'),
-  ('Pooja Yadav',    '9876543217', 'Weekend');
-*/
+-- ── Grant anon role full access (REQUIRED even when RLS is off) ───────────────
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT ALL   ON ALL TABLES    IN SCHEMA public TO anon, authenticated;
+GRANT ALL   ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
+GRANT ALL   ON ALL ROUTINES  IN SCHEMA public TO anon, authenticated;
+
+-- ── Also grant on future tables ───────────────────────────────────────────────
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT ALL ON TABLES    TO anon, authenticated;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT ALL ON SEQUENCES TO anon, authenticated;

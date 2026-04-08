@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 interface ToastProps {
   message: string
@@ -60,11 +60,14 @@ interface ToastState {
 export function useToast() {
   const [toast, setToast] = useState<ToastState | null>(null)
 
-  const show = (message: string, type: ToastState['type'] = 'success') => {
+  // CRITICAL: useCallback so show/hide have stable references across renders.
+  // Without this, any useCallback([..., show]) recreates on every render,
+  // causing useEffect to fire in an infinite loop.
+  const show = useCallback((message: string, type: ToastState['type'] = 'success') => {
     setToast({ message, type, id: Date.now() })
-  }
+  }, [])
 
-  const hide = () => setToast(null)
+  const hide = useCallback(() => setToast(null), [])
 
   return { toast, show, hide }
 }

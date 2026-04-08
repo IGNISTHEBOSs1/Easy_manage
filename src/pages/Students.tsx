@@ -29,10 +29,16 @@ export default function Students() {
   useEffect(() => { load() }, [load])
 
   const handleAdd = async () => {
-    if (!form.name.trim() || !form.phone.trim()) return
+    const name  = form.name.trim()
+    const phone = form.phone.trim()
+    if (!name || !phone) return
+    if (phone.length !== 10 || !/^\d+$/.test(phone)) {
+      show('Phone number must be exactly 10 digits', 'error')
+      return
+    }
     setSaving(true)
     try {
-      await addStudent(form)
+      await addStudent({ name, phone, batch: form.batch })
       setForm({ name: '', phone: '', batch: 'Morning' })
       setShowForm(false)
       show('Student added successfully')
@@ -45,7 +51,7 @@ export default function Students() {
   }
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Remove ${name} from the system?`)) return
+    if (!confirm(`Remove ${name} from the system? Their fees and attendance records will also be deleted.`)) return
     try {
       await deleteStudent(id)
       show(`${name} removed`)
@@ -102,8 +108,9 @@ export default function Students() {
                 type="tel"
                 placeholder="10-digit mobile number"
                 value={form.phone}
-                onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                onChange={e => setForm(f => ({ ...f, phone: e.target.value.replace(/\D/g, '') }))}
                 maxLength={10}
+                inputMode="numeric"
               />
             </div>
             <div>
@@ -124,7 +131,7 @@ export default function Students() {
             <div className="flex gap-2 pt-1">
               <button
                 onClick={handleAdd}
-                disabled={saving || !form.name.trim() || !form.phone.trim()}
+                disabled={saving || !form.name.trim() || form.phone.trim().length !== 10}
                 className="btn-primary flex-1"
               >
                 {saving ? <span className="spinner" /> : 'Save Student'}

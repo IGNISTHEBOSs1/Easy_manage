@@ -26,21 +26,36 @@ export default function AttendancePage() {
   const load = useCallback(async () => {
     setLoading(true)
     setSaved(false)
-    try {
-      const [allStudents, records] = await Promise.all([
-        getStudents(),
-        getAttendanceByDate(date),
-      ])
+
+    // Use Promise.allSettled so that an attendance query failure (e.g. table not
+    // yet created) never prevents students from loading and being visible.
+    const [studentsResult, attendanceResult] = await Promise.allSettled([
+      getStudents(),
+      getAttendanceByDate(date),
+    ])
+
+    let allStudents: Student[] = []
+
+    if (studentsResult.status === 'fulfilled') {
+      allStudents = studentsResult.value
       setStudents(allStudents)
-      const map: AttendanceMap = {}
-      records.forEach(r => { map[r.student_id] = r.status })
-      allStudents.forEach(s => { if (!(s.id in map)) map[s.id] = 'present' })
-      setAttendance(map)
-    } catch (e) {
-      show(`Failed to load attendance: ${extractError(e)}`, 'error')
-    } finally {
-      setLoading(false)
+    } else {
+      show(`Could not load students: ${extractError(studentsResult.reason)}`, 'error')
+      setStudents([])
     }
+
+    // Build attendance map from saved records; default everyone to 'present'
+    const map: AttendanceMap = {}
+    if (attendanceResult.status === 'fulfilled') {
+      attendanceResult.value.forEach(r => { map[r.student_id] = r.status })
+    } else {
+      show(`Could not load attendance records: ${extractError(attendanceResult.reason)}`, 'error')
+    }
+    // Default any student not yet in the map to 'present'
+    allStudents.forEach(s => { if (!(s.id in map)) map[s.id] = 'present' })
+    setAttendance(map)
+
+    setLoading(false)
   }, [date, show])
 
   useEffect(() => { load() }, [load])
@@ -229,8 +244,12 @@ export default function AttendancePage() {
         <div className="flex justify-center py-12"><span className="spinner text-navy-400" /></div>
       ) : batchStudents.length === 0 ? (
         <EmptyState
-          title="No students in this batch"
-          description="Add students and assign them to this batch from the Students page."
+          title={students.length === 0 ? 'No students yet' : 'No students in this batch'}
+          description={
+            students.length === 0
+              ? 'Go to the Students page and add students first.'
+              : 'Add students and assign them to this batch from the Students page.'
+          }
           icon={
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0" />
