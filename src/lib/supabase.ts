@@ -6,8 +6,6 @@ const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // ─── Error helper ─────────────────────────────────────────────────────────────
-// Supabase throws a PostgREST error object {message, code, details, hint}
-// This extracts a human-readable string from any thrown value.
 export function extractError(err: unknown): string {
   if (!err) return 'Unknown error'
   if (typeof err === 'string') return err
@@ -20,7 +18,6 @@ export function extractError(err: unknown): string {
 }
 
 // ─── Connection check ─────────────────────────────────────────────────────────
-// Returns null on success, or an error string.
 export async function checkConnection(): Promise<string | null> {
   try {
     const { error } = await supabase.from('students').select('id').limit(1)
@@ -32,6 +29,13 @@ export async function checkConnection(): Promise<string | null> {
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+export interface Batch {
+  id: string
+  name: string
+  timing: string
+  created_at: string
+}
 
 export interface Student {
   id: string
@@ -57,6 +61,34 @@ export interface Attendance {
   date: string
   status: 'present' | 'absent'
   students?: Student
+}
+
+// ─── Batches ──────────────────────────────────────────────────────────────────
+
+export const getBatches = async (): Promise<Batch[]> => {
+  const { data, error } = await supabase
+    .from('batches')
+    .select('*')
+    .order('created_at', { ascending: true })
+  if (error) throw error
+  return data ?? []
+}
+
+export const addBatch = async (
+  batch: Omit<Batch, 'id' | 'created_at'>
+): Promise<Batch> => {
+  const { data, error } = await supabase
+    .from('batches')
+    .insert(batch)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export const deleteBatch = async (id: string): Promise<void> => {
+  const { error } = await supabase.from('batches').delete().eq('id', id)
+  if (error) throw error
 }
 
 // ─── Students ────────────────────────────────────────────────────────────────
