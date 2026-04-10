@@ -97,43 +97,45 @@ export default function App() {
 
 const SQL_SETUP = `-- Paste this in Supabase SQL Editor and click Run
 
+CREATE TABLE IF NOT EXISTS batches (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name       TEXT NOT NULL UNIQUE,
+  timing     TEXT NOT NULL DEFAULT \'\',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS students (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  phone TEXT NOT NULL,
-  batch TEXT NOT NULL CHECK (batch IN
-    ('Morning','Afternoon','Evening','Weekend')),
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name       TEXT NOT NULL,
+  phone      TEXT NOT NULL,
+  batch      TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS fees (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  student_id UUID NOT NULL REFERENCES students(id)
-    ON DELETE CASCADE,
-  amount NUMERIC(10,2) NOT NULL CHECK (amount > 0),
-  status TEXT NOT NULL DEFAULT 'pending'
-    CHECK (status IN ('paid','pending')),
-  due_date DATE NOT NULL,
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  amount     NUMERIC(10,2) NOT NULL CHECK (amount > 0),
+  status     TEXT NOT NULL DEFAULT \'pending\'
+             CHECK (status IN (\'paid\',\'pending\')),
+  due_date   DATE NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS attendance (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  student_id UUID NOT NULL REFERENCES students(id)
-    ON DELETE CASCADE,
-  date DATE NOT NULL,
-  status TEXT NOT NULL DEFAULT 'present'
-    CHECK (status IN ('present','absent')),
-  CONSTRAINT attendance_student_date_unique
-    UNIQUE (student_id, date)
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  date       DATE NOT NULL,
+  status     TEXT NOT NULL DEFAULT \'present\'
+             CHECK (status IN (\'present\',\'absent\')),
+  CONSTRAINT attendance_student_date_unique UNIQUE (student_id, date)
 );
 
+ALTER TABLE batches    DISABLE ROW LEVEL SECURITY;
 ALTER TABLE students   DISABLE ROW LEVEL SECURITY;
 ALTER TABLE fees       DISABLE ROW LEVEL SECURITY;
 ALTER TABLE attendance DISABLE ROW LEVEL SECURITY;
 
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
-GRANT ALL ON ALL TABLES IN SCHEMA public
-  TO anon, authenticated;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public
-  TO anon, authenticated;`
+GRANT ALL ON ALL TABLES    IN SCHEMA public TO anon, authenticated;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;`

@@ -5,22 +5,172 @@ import {
 } from '../lib/supabase'
 import Toast, { useToast } from '../components/Toast'
 
-const WA = (
+const WAIcon = () => (
   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
     <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm.029 18.88a7.947 7.947 0 01-4.031-1.086l-.289-.172-2.995.786.8-2.924-.188-.302A7.933 7.933 0 014.07 12.03C4.07 7.624 7.624 4.07 12.03 4.07c2.137 0 4.142.833 5.652 2.344a7.935 7.935 0 012.334 5.638c-.001 4.406-3.555 7.828-7.987 7.828z"/>
   </svg>
 )
 
+// ─── Bulk WhatsApp Reminder Modal ─────────────────────────────────────────────
+interface BulkReminderModalProps {
+  fees: Fee[]
+  onClose: () => void
+  onDone: (count: number) => void
+}
+
+function BulkReminderModal({ fees, onClose, onDone }: BulkReminderModalProps) {
+  const [index, setIndex] = useState(0)
+  const [sent, setSent]   = useState<Set<string>>(new Set())
+
+  const current = fees[index]
+  const total   = fees.length
+  const allDone = index >= total
+
+  const openWhatsApp = (fee: Fee) => {
+    const phone = fee.students?.phone
+    if (!phone) return
+    const due = new Date(fee.due_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+    const msg = encodeURIComponent(
+      `Dear ${fee.students?.name},\n\nYour fee of *₹${fee.amount.toLocaleString('en-IN')}* is due on *${due}*.\n\nPlease make the payment at the earliest.\n\n— CoachPro Institute`
+    )
+    window.open(`https://wa.me/91${phone}?text=${msg}`, '_blank')
+    setSent(s => new Set(s).add(fee.id))
+  }
+
+  const handleSend = () => {
+    openWhatsApp(current)
+  }
+
+  const handleNext = () => {
+    if (index + 1 >= total) {
+      onDone(sent.size)
+    } else {
+      setIndex(i => i + 1)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm px-4 pb-6 sm:pb-0">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-slide-up">
+
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-bold text-slate-800">Send Fee Reminders</p>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {allDone ? 'All done!' : `${index + 1} of ${total}`}
+            </p>
+          </div>
+          <button onClick={onClose} className="text-slate-300 hover:text-slate-500">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Progress bar */}
+        <div className="h-1 bg-slate-100">
+          <div
+            className="h-full bg-emerald-500 transition-all duration-500"
+            style={{ width: `${Math.round((sent.size / total) * 100)}%` }}
+          />
+        </div>
+
+        {allDone ? (
+          <div className="p-8 text-center">
+            <div className="w-14 h-14 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-7 h-7 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <p className="text-base font-bold text-slate-800">Reminders Sent!</p>
+            <p className="text-sm text-slate-400 mt-1">{sent.size} of {total} reminders sent via WhatsApp</p>
+            <button onClick={() => onDone(sent.size)} className="btn-primary mt-5 w-full">Done</button>
+          </div>
+        ) : (
+          <div className="p-5 space-y-4">
+            {/* Student card */}
+            <div className="bg-slate-50 rounded-xl p-4">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-xl bg-brand-100 text-brand-700 font-bold text-sm flex items-center justify-center shrink-0">
+                  {current.students?.name?.[0]?.toUpperCase() ?? '?'}
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-slate-800">{current.students?.name}</p>
+                  <p className="text-xs text-slate-400">{current.students?.batch} · {current.students?.phone}</p>
+                </div>
+              </div>
+              <div className="bg-white rounded-lg border border-slate-200 p-3">
+                <p className="text-xs text-slate-400 mb-1">Message preview</p>
+                <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap">
+{`Dear ${current.students?.name},
+
+Your fee of *₹${current.amount.toLocaleString('en-IN')}* is due on *${new Date(current.due_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}*.
+
+Please make the payment at the earliest.
+
+— CoachPro Institute`}
+                </p>
+              </div>
+              {!current.students?.phone && (
+                <p className="text-xs text-red-500 mt-2 font-medium">⚠ No phone number on record — cannot send.</p>
+              )}
+            </div>
+
+            {/* Sent badge */}
+            {sent.has(current.id) && (
+              <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
+                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+                <p className="text-xs font-semibold">WhatsApp opened for this student</p>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex gap-2">
+              {!sent.has(current.id) && current.students?.phone ? (
+                <button onClick={handleSend} className="btn-warning flex-1 gap-1.5">
+                  <WAIcon /> Open WhatsApp
+                </button>
+              ) : (
+                <button onClick={handleSend} disabled={!current.students?.phone} className="btn-secondary flex-1 text-xs gap-1.5 opacity-70">
+                  <WAIcon /> Re-open
+                </button>
+              )}
+              <button
+                onClick={handleNext}
+                className="btn-primary flex-1"
+              >
+                {index + 1 >= total ? 'Finish' : 'Next →'}
+              </button>
+            </div>
+
+            {/* Skip */}
+            <button onClick={handleNext} className="w-full text-xs text-slate-400 hover:text-slate-600 py-1">
+              Skip this student
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Main Fees Page ───────────────────────────────────────────────────────────
+
 export default function Fees() {
-  const [fees,     setFees]     = useState<Fee[]>([])
-  const [students, setStudents] = useState<Student[]>([])
-  const [batches,  setBatches]  = useState<Batch[]>([])
-  const [tab,      setTab]      = useState<'pending' | 'all'>('pending')
-  const [showForm, setShowForm] = useState(false)
-  const [loading,  setLoading]  = useState(true)
-  const [saving,   setSaving]   = useState(false)
+  const [fees,        setFees]        = useState<Fee[]>([])
+  const [students,    setStudents]    = useState<Student[]>([])
+  const [batches,     setBatches]     = useState<Batch[]>([])
+  const [tab,         setTab]         = useState<'pending' | 'all'>('pending')
+  const [showForm,    setShowForm]    = useState(false)
+  const [loading,     setLoading]     = useState(true)
+  const [saving,      setSaving]      = useState(false)
+  const [payingIds,   setPayingIds]   = useState<Set<string>>(new Set())   // per-fee loading state
   const [filterBatch, setFilterBatch] = useState('all')
+  const [showBulk,    setShowBulk]    = useState(false)
   const [form, setForm] = useState({ student_id: '', amount: '', due_date: '' })
   const { toast, show, hide } = useToast()
 
@@ -31,7 +181,7 @@ export default function Fees() {
       getStudents(),
       getBatches(),
     ])
-    if (feesRes.status === 'fulfilled')    setFees(feesRes.value)
+    if (feesRes.status === 'fulfilled')     setFees(feesRes.value)
     else show(`Fees error: ${extractError(feesRes.reason)}`, 'error')
     if (studentsRes.status === 'fulfilled') setStudents(studentsRes.value)
     if (batchesRes.status === 'fulfilled')  setBatches(batchesRes.value)
@@ -53,19 +203,29 @@ export default function Fees() {
     finally { setSaving(false) }
   }
 
+  // Per-fee loading state — prevents duplicate clicks
   const handleMarkPaid = async (fee: Fee) => {
+    if (payingIds.has(fee.id)) return
+    setPayingIds(s => new Set(s).add(fee.id))
     try {
       await updateFeeStatus(fee.id, 'paid')
       show(`Marked paid — ${fee.students?.name}`)
       await load()
-    } catch (e) { show(`Failed: ${extractError(e)}`, 'error') }
+    } catch (e) {
+      show(`Failed: ${extractError(e)}`, 'error')
+    } finally {
+      setPayingIds(s => { const n = new Set(s); n.delete(fee.id); return n })
+    }
   }
 
+  // Single reminder — opens wa.me directly
   const sendReminder = (fee: Fee) => {
     const phone = fee.students?.phone
-    if (!phone) return
+    if (!phone) { show('No phone number for this student', 'error'); return }
     const due = new Date(fee.due_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
-    const msg = encodeURIComponent(`Dear ${fee.students?.name},\n\nYour fee of *₹${fee.amount.toLocaleString('en-IN')}* is due on *${due}*.\n\nPlease make the payment at the earliest.\n\n— CoachPro Institute`)
+    const msg = encodeURIComponent(
+      `Dear ${fee.students?.name},\n\nYour fee of *₹${fee.amount.toLocaleString('en-IN')}* is due on *${due}*.\n\nPlease make the payment at the earliest.\n\n— CoachPro Institute`
+    )
     window.open(`https://wa.me/91${phone}?text=${msg}`, '_blank')
   }
 
@@ -74,14 +234,27 @@ export default function Fees() {
   const totalCollected = fees.filter(f => f.status === 'paid').reduce((s, f) => s + f.amount, 0)
   const isOverdue      = (d: string) => new Date(d) < new Date(new Date().toDateString())
 
-  const visibleStudents = filterBatch === 'all' ? students : students.filter(s => s.batch === filterBatch)
   const visibleFees = filterBatch === 'all' ? fees : fees.filter(f => {
-    const s = students.find(s => s.id === f.student_id)
+    const s = students.find(st => st.id === f.student_id)
     return s?.batch === filterBatch
   })
 
+  const visiblePending = visibleFees.filter(f => f.status === 'pending')
+
   return (
     <div className="space-y-5">
+
+      {/* ── Bulk Reminder Modal ── */}
+      {showBulk && (
+        <BulkReminderModal
+          fees={visiblePending}
+          onClose={() => setShowBulk(false)}
+          onDone={(count) => {
+            setShowBulk(false)
+            show(`${count} reminder${count !== 1 ? 's' : ''} sent via WhatsApp`, 'info')
+          }}
+        />
+      )}
 
       {/* ── Header ── */}
       <div className="flex items-start justify-between gap-4">
@@ -124,7 +297,6 @@ export default function Fees() {
                         </optgroup>
                       )
                     })}
-                    {/* Students not in any batch */}
                     {students.filter(s => !batches.find(b => b.name === s.batch)).map(s => (
                       <option key={s.id} value={s.id}>{s.name} — {s.batch}</option>
                     ))}
@@ -155,7 +327,7 @@ export default function Fees() {
         </div>
       )}
 
-      {/* ── Summary + Tabs ── */}
+      {/* ── Summary ── */}
       {!loading && (
         <div className="grid grid-cols-2 gap-3">
           <div className="card p-4">
@@ -171,7 +343,7 @@ export default function Fees() {
         </div>
       )}
 
-      {/* Tabs + Batch Filter */}
+      {/* ── Tabs + Batch Filter ── */}
       <div className="flex flex-col sm:flex-row gap-2">
         <div className="flex bg-slate-200 rounded-xl p-1 w-full sm:w-auto">
           {(['pending', 'all'] as const).map(t => (
@@ -192,15 +364,17 @@ export default function Fees() {
         )}
       </div>
 
-      {/* Send All Reminders */}
-      {tab === 'pending' && pendingFees.length > 0 && (
-        <button onClick={() => { pendingFees.forEach((f, i) => setTimeout(() => sendReminder(f), i * 700)); show(`Sending ${pendingFees.length} reminders…`, 'info') }}
-          className="btn-warning w-full">
-          {WA} Send Reminder to All Pending ({pendingFees.length})
+      {/* ── Bulk Reminder Button ── */}
+      {tab === 'pending' && visiblePending.length > 0 && (
+        <button
+          onClick={() => setShowBulk(true)}
+          className="btn-warning w-full"
+        >
+          <WAIcon /> Send Reminder to All Pending ({visiblePending.length})
         </button>
       )}
 
-      {/* Fee List */}
+      {/* ── Fee List ── */}
       {loading ? (
         <div className="flex justify-center py-16"><span className="spinner text-brand-400" /></div>
       ) : visibleFees.length === 0 ? (
@@ -218,7 +392,8 @@ export default function Fees() {
       ) : (
         <div className="space-y-2.5">
           {visibleFees.map(fee => {
-            const overdue = fee.status === 'pending' && isOverdue(fee.due_date)
+            const overdue  = fee.status === 'pending' && isOverdue(fee.due_date)
+            const isPaying = payingIds.has(fee.id)
             return (
               <div key={fee.id} className={`card p-4 ${overdue ? 'border-red-200' : ''}`}>
                 <div className="flex items-start gap-3">
@@ -241,12 +416,18 @@ export default function Fees() {
                 </div>
                 {fee.status === 'pending' && (
                   <div className="flex gap-2 mt-3 pt-3 border-t border-slate-100">
-                    <button onClick={() => sendReminder(fee)} className="btn-warning flex-1 py-2 text-xs">
-                      {WA} Remind via WhatsApp
+                    <button onClick={() => sendReminder(fee)} className="btn-warning flex-1 py-2 text-xs gap-1">
+                      <WAIcon /> Remind
                     </button>
-                    <button onClick={() => handleMarkPaid(fee)} className="btn-success flex-1 py-2 text-xs">
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                      Mark Paid
+                    <button
+                      onClick={() => handleMarkPaid(fee)}
+                      disabled={isPaying}
+                      className="btn-success flex-1 py-2 text-xs"
+                    >
+                      {isPaying
+                        ? <span className="spinner w-3.5 h-3.5" />
+                        : <><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg> Mark Paid</>
+                      }
                     </button>
                   </div>
                 )}
