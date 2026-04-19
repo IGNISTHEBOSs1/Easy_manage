@@ -7,6 +7,242 @@ import Toast, { useToast } from '../components/Toast'
 
 type AttMap = Record<string, 'present' | 'absent'>
 
+// ─── PDF Generator (no external library) ─────────────────────────────────────
+function generateAttendancePDF(
+  batchName: string,
+  batchTiming: string,
+  date: string,
+  students: Student[],
+  attendance: AttMap,
+) {
+  const presentStudents = students.filter(s => attendance[s.id] !== 'absent')
+  const absentStudents  = students.filter(s => attendance[s.id] === 'absent')
+  const presentCount    = presentStudents.length
+  const absentCount     = absentStudents.length
+  const total           = students.length
+  const pct             = total > 0 ? Math.round(presentCount / total * 100) : 0
+
+  const formattedDate = new Date(date).toLocaleDateString('en-IN', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  })
+
+  const rowsHtml = students.map((s, i) => {
+    const isPresent = attendance[s.id] !== 'absent'
+    return `
+      <tr style="background:${i % 2 === 0 ? '#ffffff' : '#f8fafc'}">
+        <td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;color:#64748b;font-size:13px;">${i + 1}</td>
+        <td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;font-weight:600;font-size:14px;color:#0f172a;">${s.name}</td>
+        <td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;color:#64748b;font-size:13px;font-family:monospace;">${s.phone}</td>
+        <td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;text-align:center;">
+          <span style="
+            display:inline-block;
+            padding:3px 12px;
+            border-radius:999px;
+            font-size:12px;
+            font-weight:700;
+            letter-spacing:0.05em;
+            background:${isPresent ? '#dcfce7' : '#fee2e2'};
+            color:${isPresent ? '#15803d' : '#dc2626'};
+          ">${isPresent ? 'PRESENT' : 'ABSENT'}</span>
+        </td>
+      </tr>`
+  }).join('')
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Attendance Report — ${batchName} — ${date}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; color: #0f172a; }
+
+    .page { max-width: 780px; margin: 0 auto; padding: 40px 36px; }
+
+    /* Header */
+    .header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 2px solid #e2e8f0; }
+    .logo-row { display: flex; align-items: center; gap: 12px; }
+    .logo-box { width: 44px; height: 44px; background: linear-gradient(135deg,#6366f1,#4f46e5); border-radius: 12px; display: flex; align-items: center; justify-content: center; }
+    .logo-box svg { width: 24px; height: 24px; fill: none; stroke: white; stroke-width: 2; }
+    .brand { font-size: 20px; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; }
+    .brand-sub { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 2px; }
+    .report-label { text-align: right; }
+    .report-title { font-size: 22px; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; }
+    .report-date { font-size: 13px; color: #64748b; margin-top: 4px; }
+
+    /* Meta row */
+    .meta { display: flex; gap: 12px; margin-bottom: 24px; }
+    .meta-card { flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 16px; }
+    .meta-label { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+    .meta-value { font-size: 16px; font-weight: 700; color: #0f172a; }
+    .meta-sub { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+
+    /* Stats */
+    .stats { display: flex; gap: 12px; margin-bottom: 28px; }
+    .stat { flex: 1; border-radius: 12px; padding: 16px; text-align: center; }
+    .stat-present { background: #f0fdf4; border: 1px solid #bbf7d0; }
+    .stat-absent  { background: #fff1f2; border: 1px solid #fecdd3; }
+    .stat-total   { background: #eef2ff; border: 1px solid #c7d2fe; }
+    .stat-pct     { background: #fffbeb; border: 1px solid #fde68a; }
+    .stat-num { font-size: 28px; font-weight: 800; }
+    .stat-present .stat-num { color: #16a34a; }
+    .stat-absent  .stat-num { color: #dc2626; }
+    .stat-total   .stat-num { color: #4f46e5; }
+    .stat-pct     .stat-num { color: #d97706; }
+    .stat-lbl { font-size: 11px; font-weight: 600; color: #64748b; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.06em; }
+
+    /* Progress bar */
+    .progress-wrap { margin-bottom: 28px; }
+    .progress-label { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 12px; font-weight: 600; color: #64748b; }
+    .progress-bar { height: 10px; background: #e2e8f0; border-radius: 999px; overflow: hidden; }
+    .progress-fill { height: 100%; border-radius: 999px; background: ${pct >= 80 ? '#22c55e' : pct >= 60 ? '#f59e0b' : '#ef4444'}; width: ${pct}%; }
+
+    /* Table */
+    .table-wrap { border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; margin-bottom: 32px; }
+    table { width: 100%; border-collapse: collapse; }
+    thead { background: #0f172a; }
+    thead th { padding: 12px 14px; text-align: left; font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; }
+    thead th:last-child { text-align: center; }
+
+    /* Absentees section */
+    .absentees { margin-bottom: 28px; }
+    .section-title { font-size: 13px; font-weight: 700; color: #dc2626; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    .section-title::after { content: ''; flex: 1; height: 1px; background: #fecdd3; }
+    .absent-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .absent-chip { background: #fff1f2; border: 1px solid #fecdd3; border-radius: 8px; padding: 6px 12px; font-size: 13px; font-weight: 600; color: #dc2626; }
+
+    /* Footer */
+    .footer { border-top: 1px solid #e2e8f0; padding-top: 16px; display: flex; justify-content: space-between; align-items: center; }
+    .footer-left { font-size: 11px; color: #94a3b8; }
+    .footer-right { font-size: 11px; color: #94a3b8; }
+    .sig-line { margin-top: 48px; border-top: 1px solid #334155; display: inline-block; padding-top: 6px; font-size: 11px; color: #64748b; min-width: 160px; text-align: center; }
+
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .page { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo-row">
+      <div class="logo-box">
+        <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+      </div>
+      <div>
+        <div class="brand">CoachPro</div>
+        <div class="brand-sub">Institute Manager</div>
+      </div>
+    </div>
+    <div class="report-label">
+      <div class="report-title">Attendance Report</div>
+      <div class="report-date">${formattedDate}</div>
+    </div>
+  </div>
+
+  <!-- Meta -->
+  <div class="meta">
+    <div class="meta-card">
+      <div class="meta-label">Batch</div>
+      <div class="meta-value">${batchName}</div>
+      ${batchTiming ? `<div class="meta-sub">${batchTiming}</div>` : ''}
+    </div>
+    <div class="meta-card">
+      <div class="meta-label">Date</div>
+      <div class="meta-value">${new Date(date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+      <div class="meta-sub">${new Date(date).toLocaleDateString('en-IN', { weekday: 'long' })}</div>
+    </div>
+    <div class="meta-card">
+      <div class="meta-label">Generated</div>
+      <div class="meta-value" style="font-size:13px;">${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>
+      <div class="meta-sub">${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat stat-present">
+      <div class="stat-num">${presentCount}</div>
+      <div class="stat-lbl">Present</div>
+    </div>
+    <div class="stat stat-absent">
+      <div class="stat-num">${absentCount}</div>
+      <div class="stat-lbl">Absent</div>
+    </div>
+    <div class="stat stat-total">
+      <div class="stat-num">${total}</div>
+      <div class="stat-lbl">Total</div>
+    </div>
+    <div class="stat stat-pct">
+      <div class="stat-num">${pct}%</div>
+      <div class="stat-lbl">Attendance</div>
+    </div>
+  </div>
+
+  <!-- Progress bar -->
+  <div class="progress-wrap">
+    <div class="progress-label">
+      <span>Attendance Rate</span>
+      <span style="color:${pct >= 80 ? '#16a34a' : pct >= 60 ? '#d97706' : '#dc2626'}">${pct}%</span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill"></div></div>
+  </div>
+
+  <!-- Student Table -->
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Student Name</th>
+          <th>Phone</th>
+          <th style="text-align:center;">Status</th>
+        </tr>
+      </thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+  </div>
+
+  ${absentStudents.length > 0 ? `
+  <!-- Absentees -->
+  <div class="absentees">
+    <div class="section-title">Absentees (${absentCount})</div>
+    <div class="absent-chips">
+      ${absentStudents.map(s => `<div class="absent-chip">${s.name}</div>`).join('')}
+    </div>
+  </div>` : ''}
+
+  <!-- Footer / Signature -->
+  <div class="footer">
+    <div class="footer-left">
+      CoachPro · Attendance Report · ${formattedDate}
+    </div>
+    <div class="footer-right">
+      <div class="sig-line">Teacher's Signature</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>`
+
+  // Open in new tab → browser print dialog appears → user saves as PDF
+  const win = window.open('', '_blank')
+  if (!win) return
+  win.document.write(html)
+  win.document.close()
+  // Small delay so styles render before print dialog opens
+  setTimeout(() => {
+    win.focus()
+    win.print()
+  }, 400)
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
 export default function AttendancePage() {
   const [students,      setStudents]      = useState<Student[]>([])
   const [batches,       setBatches]       = useState<Batch[]>([])
@@ -18,19 +254,13 @@ export default function AttendancePage() {
   const [saved,         setSaved]         = useState(false)
   const { toast, show, hide }             = useToast()
 
-  // ── FIX: Use refs to always hold the latest values inside async callbacks.
-  // The `save` function was closing over stale `attendance` and `batchStudents`
-  // from the render where it was created — so it always sent the initial
-  // empty-map values to Supabase, not what the user had toggled.
   const attendanceRef    = useRef<AttMap>({})
   const batchStudentsRef = useRef<Student[]>([])
   const dateRef          = useRef(date)
 
-  // Keep refs in sync with state on every render
-  attendanceRef.current = attendance
-  dateRef.current       = date
-
-  const batchStudents = students.filter(s => s.batch === selectedBatch)
+  attendanceRef.current    = attendance
+  dateRef.current          = date
+  const batchStudents      = students.filter(s => s.batch === selectedBatch)
   batchStudentsRef.current = batchStudents
 
   const isToday = date === new Date().toISOString().split('T')[0]
@@ -55,7 +285,6 @@ export default function AttendancePage() {
 
     if (bRes.status === 'fulfilled') {
       setBatches(bRes.value)
-      // Auto-select first batch only if nothing is selected yet
       if (bRes.value.length > 0 && !currentBatch) {
         setSelectedBatch(bRes.value[0].name)
       }
@@ -63,7 +292,6 @@ export default function AttendancePage() {
       show(`Could not load batches: ${extractError(bRes.reason)}`, 'error')
     }
 
-    // Build attendance map: DB records override, fill rest with 'present'
     const map: AttMap = {}
     allStudents.forEach(s => { map[s.id] = 'present' })
     if (aRes.status === 'fulfilled') {
@@ -73,13 +301,11 @@ export default function AttendancePage() {
     setLoading(false)
   }, [show])
 
-  // Reload when date changes
   useEffect(() => {
     load(date, selectedBatch || undefined)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date])
 
-  // Initial load
   useEffect(() => {
     load(date)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -108,7 +334,7 @@ export default function AttendancePage() {
     })
   }
 
-  // ── FIX: Read from refs, not from closed-over state ──
+  // Save to DB → then generate PDF
   const save = async () => {
     const students = batchStudentsRef.current
     const att      = attendanceRef.current
@@ -133,8 +359,18 @@ export default function AttendancePage() {
     try {
       await upsertAttendance(records)
       setSaved(true)
-      show('Attendance saved successfully ✓')
+      show('Attendance saved — generating PDF…', 'info')
       console.log('[Attendance] Saved successfully')
+
+      // Generate PDF after successful save
+      const batchInfo = batches.find(b => b.name === selectedBatch)
+      generateAttendancePDF(
+        selectedBatch,
+        batchInfo?.timing ?? '',
+        d,
+        students,
+        att,
+      )
     } catch (e) {
       const msg = extractError(e)
       console.error('[Attendance] Save failed:', e)
@@ -144,19 +380,29 @@ export default function AttendancePage() {
     }
   }
 
+  // Download PDF without saving (for already-saved records)
+  const downloadPDF = () => {
+    const batchInfo = batches.find(b => b.name === selectedBatch)
+    generateAttendancePDF(
+      selectedBatch,
+      batchInfo?.timing ?? '',
+      dateRef.current,
+      batchStudentsRef.current,
+      attendanceRef.current,
+    )
+  }
+
   const notifyAbsentees = () => {
     const abs = batchStudentsRef.current.filter(s => attendanceRef.current[s.id] === 'absent')
     if (!abs.length) { show('No absentees to notify 🎉', 'info'); return }
     const d = new Date(dateRef.current).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })
 
-    // Open first tab immediately (allowed by browser), then guide through rest
     if (abs.length === 1) {
       const s   = abs[0]
       const msg = encodeURIComponent(`Dear ${s.name},\n\nYou were *absent* on ${d} for the ${s.batch} batch.\n\nPlease attend regularly.\n\n— CoachPro Institute`)
       window.open(`https://wa.me/91${s.phone}?text=${msg}`, '_blank')
       show('WhatsApp opened for absentee', 'info')
     } else {
-      // Open first one immediately, show count for rest
       const first = abs[0]
       const msg   = encodeURIComponent(`Dear ${first.name},\n\nYou were *absent* on ${d} for the ${first.batch} batch.\n\nPlease attend regularly.\n\n— CoachPro Institute`)
       window.open(`https://wa.me/91${first.phone}?text=${msg}`, '_blank')
@@ -341,7 +587,7 @@ export default function AttendancePage() {
             })}
           </div>
 
-          {/* ── Save Button ── */}
+          {/* ── Save + PDF Button ── */}
           <button
             onClick={save}
             disabled={saving || saved}
@@ -353,29 +599,41 @@ export default function AttendancePage() {
           >
             {saving ? (
               <span className="flex items-center justify-center gap-2">
-                <span className="spinner w-4 h-4" /> Saving…
+                <span className="spinner w-4 h-4" /> Saving & generating PDF…
               </span>
             ) : saved ? (
               <span className="flex items-center justify-center gap-2">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
-                Attendance Saved
+                Saved & PDF Generated
               </span>
             ) : (
               <span className="flex items-center justify-center gap-2">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
                 </svg>
-                Save Attendance
+                Save & Download PDF
               </span>
             )}
           </button>
 
+          {/* ── Re-download PDF after save ── */}
           {saved && (
-            <p className="text-center text-xs text-slate-400">
-              Changes saved · <button onClick={() => setSaved(false)} className="underline hover:text-slate-600">Make more changes</button>
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-slate-400">
+                Changes saved · <button onClick={() => setSaved(false)} className="underline hover:text-slate-600">Make more changes</button>
+              </p>
+              <button
+                onClick={downloadPDF}
+                className="flex items-center gap-1.5 text-xs font-semibold text-brand-600 hover:text-brand-700"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+                </svg>
+                Download PDF again
+              </button>
+            </div>
           )}
         </div>
       )}
