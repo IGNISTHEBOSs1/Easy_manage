@@ -5,7 +5,7 @@ A clean, mobile-first SaaS MVP for Indian coaching institutes.
 
 ---
 
-## ⚡ Quick Start
+## ⚡ Quick Start 
 
 ### 1. Install dependencies
 ```bash
