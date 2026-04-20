@@ -356,7 +356,7 @@ export default function AttendancePage() {
 
   attendanceRef.current    = attendance
   dateRef.current          = date
-  const batchStudents      = students.filter(s => s.batch === selectedBatch)
+  const batchStudents      = students.filter(s => (s.batches?.name ?? s.batch_name_legacy) === selectedBatch)
   batchStudentsRef.current = batchStudents
 
   const isToday = date === new Date().toISOString().split('T')[0]
@@ -453,7 +453,7 @@ export default function AttendancePage() {
     if (!abs.length) { show('No absentees to notify 🎉', 'info'); return }
     const d = new Date(dateRef.current).toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' })
     const first = abs[0]
-    const msg   = encodeURIComponent(`Dear ${first.name},\n\nYou were *absent* on ${d} for the ${first.batch} batch.\n\nPlease attend regularly.\n\n— CoachPro Institute`)
+    const msg   = encodeURIComponent(`Dear ${first.name},\n\nYou were *absent* on ${d} for the ${first.batches?.name ?? first.batch_name_legacy} batch.\n\nPlease attend regularly.\n\n— CoachPro Institute`)
     window.open(`https://wa.me/91${first.phone}?text=${msg}`, '_blank')
     if (abs.length > 1) show(`Opened WhatsApp for ${first.name}. ${abs.length - 1} more — click again.`, 'info')
     else show('WhatsApp opened for absentee', 'info')
@@ -496,7 +496,7 @@ export default function AttendancePage() {
             <label className="label">Batch</label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {batches.map(b => {
-                const cnt = students.filter(s => s.batch === b.name).length
+                const cnt = students.filter(s => s.batch_id === b.id).length
                 return (
                   <button key={b.id} onClick={() => { setSaved(false); setSelectedBatch(b.name) }}
                     className={`py-2.5 px-3 rounded-xl text-sm font-semibold border transition-all text-left ${

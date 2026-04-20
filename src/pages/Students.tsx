@@ -15,7 +15,8 @@ export default function Students() {
   const [saving,      setSaving]      = useState(false)
   const [search,      setSearch]      = useState('')
   const [activeBatch, setActiveBatch] = useState<string>('all')
-  const [form, setForm]   = useState({ name: '', phone: '', batch: '' })
+  // form uses batch_id (UUID) — not the old batch name string
+  const [form, setForm]     = useState({ name: '', phone: '', batch_id: '' })
   const [newBatch, setNewBatch] = useState({ name: '', timing: '' })
   const { toast, show, hide } = useToast()
 
@@ -26,31 +27,29 @@ export default function Students() {
     else show(`Could not load students: ${extractError(sRes.reason)}`, 'error')
     if (bRes.status === 'fulfilled') {
       setBatches(bRes.value)
-      if (bRes.value.length > 0 && !form.batch)
-        setForm(f => ({ ...f, batch: bRes.value[0].name }))
-    }
-    else show(`Could not load batches: ${extractError(bRes.reason)}`, 'error')
+      if (bRes.value.length > 0 && !form.batch_id)
+        setForm(f => ({ ...f, batch_id: bRes.value[0].id }))
+    } else show(`Could not load batches: ${extractError(bRes.reason)}`, 'error')
     setLoading(false)
   }, [show]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { load() }, [load])
 
-  // Keep form batch in sync when batches load
   useEffect(() => {
-    if (batches.length > 0 && !form.batch)
-      setForm(f => ({ ...f, batch: batches[0].name }))
+    if (batches.length > 0 && !form.batch_id)
+      setForm(f => ({ ...f, batch_id: batches[0].id }))
   }, [batches]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleAddStudent = async () => {
     const name  = form.name.trim()
     const phone = form.phone.trim()
-    if (!name || !phone || !form.batch) return
+    if (!name || !phone || !form.batch_id) return
     if (phone.length !== 10 || !/^\d+$/.test(phone)) {
       show('Phone must be exactly 10 digits', 'error'); return
     }
     setSaving(true)
     try {
-      await addStudent({ name, phone, batch: form.batch })
+      await addStudent({ name, phone, batch_id: form.batch_id })
       setForm(f => ({ ...f, name: '', phone: '' }))
       setShowForm(false)
       show('Student added ✓')
@@ -80,7 +79,7 @@ export default function Students() {
   }
 
   const handleDeleteBatch = async (b: Batch) => {
-    const hasStudents = students.some(s => s.batch === b.name)
+    const hasStudents = students.some(s => s.batch_id === b.id)
     if (hasStudents) { show('Cannot delete — students are assigned to this batch', 'error'); return }
     if (!confirm(`Delete batch "${b.name}"?`)) return
     try {
@@ -90,20 +89,23 @@ export default function Students() {
     } catch (e) { show(`Failed: ${extractError(e)}`, 'error') }
   }
 
+  // Helper: get display batch name from student
+  const batchName = (s: Student) => s.batches?.name ?? s.batch_name_legacy
+
   const filtered = students.filter(s => {
-    const matchBatch  = activeBatch === 'all' || s.batch === activeBatch
+    const matchBatch  = activeBatch === 'all' || s.batch_id === activeBatch
     const matchSearch = s.name.toLowerCase().includes(search.toLowerCase()) ||
                         s.phone.includes(search) ||
-                        s.batch.toLowerCase().includes(search.toLowerCase())
+                        batchName(s).toLowerCase().includes(search.toLowerCase())
     return matchBatch && matchSearch
   })
 
+  // Group by batch_id; key is batch uuid
   const grouped = batches.reduce<Record<string, Student[]>>((acc, b) => {
-    acc[b.name] = filtered.filter(s => s.batch === b.name)
+    acc[b.id] = filtered.filter(s => s.batch_id === b.id)
     return acc
   }, {})
-  // Also group students with batches not in batch list
-  filtered.forEach(s => { if (!grouped[s.batch]) grouped[s.batch] = [s] })
+  filtered.forEach(s => { if (!grouped[s.batch_id]) grouped[s.batch_id] = [s] })
 
   return (
     <div className="space-y-5">
@@ -156,15 +158,15 @@ export default function Students() {
               <div>
                 <label className="label">Batch</label>
                 <div className="relative">
-                  <select className="select" value={form.batch} onChange={e => setForm(f => ({ ...f, batch: e.target.value }))}>
-                    {batches.map(b => <option key={b.id} value={b.name}>{b.name}{b.timing ? ` (${b.timing})` : ''}</option>)}
+                  <select className="select" value={form.batch_id} onChange={e => setForm(f => ({ ...f, batch_id: e.target.value }))}>
+                    {batches.map(b => <option key={b.id} value={b.id}>{b.name}{b.timing ? ` (${b.timing})` : ''}</option>)}
                   </select>
                   <svg className="absolute right-3 top-3 w-4 h-4 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
                 </div>
               </div>
               <div className="flex gap-2 pt-1">
                 <button onClick={handleAddStudent}
-                  disabled={saving || !form.name.trim() || form.phone.trim().length !== 10 || !form.batch}
+                  disabled={saving || !form.name.trim() || form.phone.trim().length !== 10 || !form.batch_id}
                   className="btn-primary flex-1">
                   {saving ? <span className="spinner" /> : 'Save Student'}
                 </button>
@@ -199,13 +201,12 @@ export default function Students() {
 
         {showBatches && (
           <div className="border-t border-slate-100 p-4 space-y-3">
-            {/* Existing batches */}
             {batches.length === 0 ? (
               <p className="text-xs text-slate-400 text-center py-2">No batches yet. Create one below.</p>
             ) : (
               <div className="space-y-2">
                 {batches.map(b => {
-                  const count = students.filter(s => s.batch === b.name).length
+                  const count = students.filter(s => s.batch_id === b.id).length
                   return (
                     <div key={b.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
                       <div className="flex-1 min-w-0">
@@ -224,7 +225,6 @@ export default function Students() {
                 })}
               </div>
             )}
-            {/* Add new batch */}
             <div className="flex gap-2 pt-1">
               <input className="input flex-1" placeholder="Batch name (e.g. Morning)"
                 value={newBatch.name} onChange={e => setNewBatch(b => ({ ...b, name: e.target.value }))} />
@@ -253,19 +253,15 @@ export default function Students() {
           )}
         </div>
         <div className="flex gap-1.5 overflow-x-auto pb-0.5 shrink-0">
-          <button
-            onClick={() => setActiveBatch('all')}
-            className={`shrink-0 px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${activeBatch === 'all' ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
-          >
+          <button onClick={() => setActiveBatch('all')}
+            className={`shrink-0 px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${activeBatch === 'all' ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}>
             All ({students.length})
           </button>
           {batches.map(b => {
-            const count = students.filter(s => s.batch === b.name).length
+            const count = students.filter(s => s.batch_id === b.id).length
             return (
-              <button key={b.id}
-                onClick={() => setActiveBatch(b.name)}
-                className={`shrink-0 px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${activeBatch === b.name ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
-              >
+              <button key={b.id} onClick={() => setActiveBatch(b.id)}
+                className={`shrink-0 px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${activeBatch === b.id ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}>
                 {b.name} ({count})
               </button>
             )
@@ -298,14 +294,15 @@ export default function Students() {
         </div>
       ) : (
         <div className="space-y-4">
-          {Object.entries(grouped).map(([batchName, list]) => {
+          {Object.entries(grouped).map(([batchKey, list]) => {
             if (!list || list.length === 0) return null
-            const batchInfo = batches.find(b => b.name === batchName)
+            const batchInfo  = batches.find(b => b.id === batchKey)
+            const displayName = batchInfo?.name ?? list[0]?.batch_name_legacy ?? batchKey
             return (
-              <div key={batchName} className="card overflow-hidden">
+              <div key={batchKey} className="card overflow-hidden">
                 <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
                   <div>
-                    <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">{batchName}</span>
+                    <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">{displayName}</span>
                     {batchInfo?.timing && (
                       <span className="ml-2 text-xs text-slate-400">{batchInfo.timing}</span>
                     )}

@@ -34,7 +34,7 @@ export default function Dashboard() {
 
   useEffect(() => { load() }, [load])
 
-  const pendingAmount = pendingFees.reduce((s, f) => s + f.amount, 0)
+  const pendingAmount = pendingFees.reduce((s, f) => s + f.total_amount, 0)
   const isToday = (d: string) => d === new Date().toISOString().split('T')[0]
 
   const today = new Date().toLocaleDateString('en-IN', {
@@ -215,10 +215,10 @@ export default function Dashboard() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-slate-800 truncate">{fee.students?.name}</p>
-                  <p className="text-xs text-slate-400">{fee.students?.batch} · Due {new Date(fee.due_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</p>
+                  <p className="text-xs text-slate-400">{fee.students?.batch_name_legacy ?? ''} · Due {new Date(fee.due_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</p>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-sm font-bold text-slate-800">₹{fee.amount.toLocaleString('en-IN')}</p>
+                  <p className="text-sm font-bold text-slate-800">₹{fee.total_amount.toLocaleString('en-IN')}</p>
                   <p className="text-[10px] text-red-500 font-semibold">OVERDUE</p>
                 </div>
               </div>
