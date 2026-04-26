@@ -9,8 +9,18 @@ import {
 } from '../lib/supabase'
 import Toast, { useToast } from '../components/Toast'
 
-// ─── jsPDF invoice (CDN, loaded on first click — no npm install) ──────────────
-async function generateInvoicePDF(fee: Fee, balance: FeeBalance | null): Promise<void> {
+// ─── jsPDF invoice ────────────────────────────────────────────────────────────
+// Always fetches fresh balance from Supabase — never trusts cached UI state.
+async function generateInvoicePDF(fee: Fee): Promise<void> {
+  // 1. Fetch live balance before doing anything else
+  let balance: FeeBalance | null = null
+  try {
+    balance = await getFeeBalance(fee.id)
+  } catch {
+    // If fetch fails, PDF still generates with zeros for paid/adjustments
+  }
+
+  // 2. Load jsPDF from CDN (cached after first load)
   await new Promise<void>((resolve, reject) => {
     if ((window as unknown as Record<string, unknown>).jspdf) { resolve(); return }
     const s = document.createElement('script')
@@ -23,6 +33,7 @@ async function generateInvoicePDF(fee: Fee, balance: FeeBalance | null): Promise
   const { jsPDF } = (window as any).jspdf
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
 
+  // 3. Use fresh balance values — never stale UI state
   const baseAmount   = Number(balance?.total_amount   ?? fee.total_amount)
   const lateFee      = Number(balance?.late_fee_amount ?? 0)
   const totalPayable = baseAmount + lateFee
@@ -430,7 +441,6 @@ export default function Fees() {
     })
   }
 
-  // Correct display total = base + late fee
   const getDisplayTotal = (fee: Fee) => {
     const bal = balances[fee.id]
     return bal ? Number(bal.total_amount) + Number(bal.late_fee_amount) : fee.total_amount
@@ -692,7 +702,6 @@ export default function Fees() {
             return (
               <div key={fee.id} className={`card overflow-hidden ${overdue ? 'border-red-200' : ''}`}>
                 <div className="p-4">
-                  {/* Top row */}
                   <div className="flex items-start gap-3">
                     <div className={`w-10 h-10 rounded-xl font-bold text-sm flex items-center justify-center shrink-0 select-none ${overdue ? 'bg-red-100 text-red-600' : 'bg-brand-100 text-brand-700'}`}>
                       {fee.students?.name?.[0]?.toUpperCase() ?? '?'}
@@ -705,7 +714,6 @@ export default function Fees() {
                       <p className="text-xs text-slate-400 mt-0.5">
                         {fee.students?.batch_name_legacy ?? ''} · Due {new Date(fee.due_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                       </p>
-                      {/* Balance due + correct total (base + late fee) */}
                       <div className="flex items-baseline gap-2 mt-1.5">
                         <p className="text-xl font-bold text-slate-800 font-mono tracking-tight">
                           ₹{displayBalance.toLocaleString('en-IN')}
@@ -718,7 +726,6 @@ export default function Fees() {
                         </p>
                       </div>
                     </div>
-                    {/* Expand toggle */}
                     <button onClick={() => toggleExpand(fee.id)}
                       className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-300 hover:text-slate-500 hover:bg-slate-50 transition-colors shrink-0"
                       title={isExpanded ? 'Hide balance' : 'Show balance breakdown'}>
@@ -726,29 +733,24 @@ export default function Fees() {
                     </button>
                   </div>
 
-                  {/* Balance breakdown */}
                   {isExpanded && <div className="mt-3"><FeeBalanceRow balance={bal} loading={isBalLoading} /></div>}
 
-                  {/* Action buttons — non-paid fees */}
+                  {/* Actions — non-paid fees */}
                   {fee.status !== 'paid' && (
                     <div className="flex gap-1.5 mt-3 pt-3 border-t border-slate-100 flex-wrap">
-                      {/* WhatsApp */}
                       <button onClick={() => sendReminder(fee)} className="btn-secondary flex-none px-2.5 py-2 text-xs" title="Send WhatsApp reminder">
                         <WAIcon />
                       </button>
-                      {/* Partial pay (modal) */}
                       <button onClick={() => { loadBalance(fee.id); setPayingFee(fee) }} className="btn-secondary flex-1 py-2 text-xs gap-1.5 min-w-[52px]">
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
                         Pay
                       </button>
-                      {/* Quick Pay Full */}
                       <button onClick={() => handleQuickPayFull(fee)} disabled={isBusy} className="btn-primary flex-1 py-2 text-xs gap-1.5 min-w-[72px]" title="Pay full remaining balance instantly">
                         {isBusy
                           ? <span className="spinner w-3.5 h-3.5" />
                           : <><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg> Pay Full</>
                         }
                       </button>
-                      {/* Apply Late Fee */}
                       <button onClick={() => handleApplyLateFee(fee)} disabled={isBusy || !canLateFee}
                         className={`flex-1 py-2 text-xs gap-1.5 min-w-[72px] ${canLateFee ? 'btn-secondary text-orange-600 border-orange-200 hover:bg-orange-50' : 'btn-secondary opacity-40 cursor-not-allowed'}`}
                         title={canLateFee ? 'Apply late fee penalty' : 'Only for overdue/partial fees'}>
@@ -757,17 +759,18 @@ export default function Fees() {
                           : <><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> Late Fee</>
                         }
                       </button>
-                      {/* Invoice */}
-                      <button onClick={() => generateInvoicePDF(fee, bal)} className="btn-secondary flex-none px-2.5 py-2 text-xs text-slate-500" title="Download PDF invoice">
+                      {/* Invoice — fetches fresh balance inside generateInvoicePDF */}
+                      <button onClick={() => generateInvoicePDF(fee)} className="btn-secondary flex-none px-2.5 py-2 text-xs text-slate-500" title="Download PDF invoice">
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                       </button>
                     </div>
                   )}
 
-                  {/* Invoice button for paid fees */}
+                  {/* Invoice for paid fees */}
                   {fee.status === 'paid' && (
                     <div className="flex justify-end mt-3 pt-3 border-t border-slate-100">
-                      <button onClick={() => generateInvoicePDF(fee, bal)} className="btn-secondary px-3 py-1.5 text-xs gap-1.5 text-slate-500" title="Download PDF invoice">
+                      {/* Invoice — fetches fresh balance inside generateInvoicePDF */}
+                      <button onClick={() => generateInvoicePDF(fee)} className="btn-secondary px-3 py-1.5 text-xs gap-1.5 text-slate-500" title="Download PDF invoice">
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                         Invoice
                       </button>
