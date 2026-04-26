@@ -339,7 +339,7 @@ export const updateFeeStatus = async (id: string, status: FeeStatus): Promise<vo
 
 /** get_fee_balance — single source of truth for what a student owes */
 export const getFeeBalance = async (feeId: string): Promise<FeeBalance> => {
-  const { data, error } = await supabase.rpc('get_fee_balance', { p_fee_id: feeId })
+  const { data, error } = await supabase.rpc('get_fee_balance', { fee_uuid: feeId })
   if (error) throw error
   if (!data || data.length === 0) throw new Error(`Fee ${feeId} not found`)
   return data[0] as FeeBalance
