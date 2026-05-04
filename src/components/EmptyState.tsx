@@ -1,19 +1,23 @@
 interface EmptyStateProps {
-  icon?: React.ReactNode
-  title: string
-  description?: string
+  icon?:    React.ReactNode
+  title:    string
+  message?: string
+  action?:  { label: string; onClick: () => void }
 }
 
-export default function EmptyState({ icon, title, description }: EmptyStateProps) {
+export default function EmptyState({ icon, title, message, action }: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center py-14 text-center">
+    <div className="card p-10 text-center">
       {icon && (
-        <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-3">
-          {icon}
+        <div className="w-14 h-14 bg-slate-100 dark:bg-slate-700 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <span className="text-slate-400">{icon}</span>
         </div>
       )}
-      <p className="text-sm font-medium text-slate-600">{title}</p>
-      {description && <p className="text-xs text-slate-400 mt-1 max-w-xs">{description}</p>}
+      <p className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">{title}</p>
+      {message && <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">{message}</p>}
+      {action && (
+        <button onClick={action.onClick} className="btn-primary mx-auto">{action.label}</button>
+      )}
     </div>
   )
 }
