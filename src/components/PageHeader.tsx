@@ -1,9 +1,4 @@
-interface PageHeaderProps {
-  title:    string
-  sub?:     string
-  action?:  React.ReactNode
-}
-
+interface PageHeaderProps { title: string; sub?: string; action?: React.ReactNode }
 export default function PageHeader({ title, sub, action }: PageHeaderProps) {
   return (
     <div className="flex items-start justify-between gap-4">
