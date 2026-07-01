@@ -1,93 +1,70 @@
-# CoachPro — Coaching Institute Manager
+# CoachPro
 
-A clean, mobile-first SaaS MVP for Indian coaching institutes.
-**Fee tracking · Attendance · WhatsApp reminders.**
+CoachPro is a modern, multi-tenant SaaS platform built to simplify the day-to-day operations of coaching institutes. It replaces scattered spreadsheets, handwritten registers, and multiple messaging apps with a single, centralized system for managing students, attendance, batches, fees, and institute operations.
 
----
-
-## ⚡ Quick Start 
-
-### 1. Install dependencies
-```bash
-npm install
-```
-
-### 2. Configure Supabase
-```bash
-cp .env.example .env
-```
-Edit `.env`:
-```
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
-```
-
-### 3. Run the SQL schema
-- Open [Supabase Dashboard](https://supabase.com/dashboard)
-- Go to **SQL Editor → New Query**
-- Paste contents of `schema.sql` and run
-
-### 4. Start dev server
-```bash
-npm run dev
-```
-
-### 5. Deploy
-```bash
-npm run build
-# Deploy /dist to Vercel, Cloudflare Pages, or Netlify
-```
+The platform is designed specifically for coaching institutes rather than generic school management. Every feature is built around the real workflows of coaching owners and administrators, allowing them to spend less time on administrative tasks and more time on teaching and growing their institute.
 
 ---
 
-## 📁 Folder Structure
+## Vision
 
-```
-src/
-├── lib/
-│   └── supabase.ts         All DB queries + TypeScript types
-├── components/
-│   ├── Layout.tsx          Sidebar (desktop) + bottom nav (mobile)
-│   ├── StatCard.tsx        Dashboard metric cards
-│   ├── Toast.tsx           Toast notifications + useToast hook
-│   ├── EmptyState.tsx      Empty list placeholder
-│   └── PageHeader.tsx      Page title + action slot
-└── pages/
-    ├── Dashboard.tsx       Stats overview + quick actions
-    ├── Students.tsx        Add/list/delete students by batch
-    ├── Fees.tsx            Assign fees, mark paid, WhatsApp remind
-    └── Attendance.tsx      Mark present/absent, save, notify
-```
+Our vision is to become the operating system for coaching institutes by providing a secure, reliable, and easy-to-use platform that helps institutes manage their entire business from one place.
+
+CoachPro prioritizes simplicity, trust, and automation over unnecessary complexity. Every feature should save time, reduce manual work, or improve operational visibility.
 
 ---
 
-## 🔑 Features
+## Core Features
 
-| Feature | How |
-|---|---|
-| Add Students | Name, phone, batch (Morning/Afternoon/Evening/Weekend) |
-| Fee Reminders | Opens WhatsApp pre-filled with student name + amount |
-| Mark Attendance | Tap to toggle present/absent per student |
-| Notify Absentees | Opens WhatsApp for each absent student |
-| Overdue Fees | Automatically highlighted in red |
-| Attendance Rate | Visual progress bar per batch |
-
----
-
-## 🚀 v2 Ideas (after first 10 customers)
-
-- [ ] Supabase Auth + per-institute data isolation (RLS)
-- [ ] Monthly fee reports (PDF export)
-- [ ] SMS reminders via Twilio / MSG91
-- [ ] Student attendance history view
-- [ ] Fee collection analytics
+* Secure authentication and account management
+* Multi-tenant architecture with complete data isolation
+* Student management and admissions
+* Batch and schedule management
+* Attendance tracking and history
+* Fee management with payment tracking
+* Expense management
+* Analytics and operational insights
+* PDF invoices and reports
+* Mobile-responsive interface
 
 ---
 
-## 💰 Pricing Suggestion
+## Design Principles
 
-| Plan | Price | Limit |
-|---|---|---|
-| Starter | ₹499/month | 1 institute, 100 students |
-| Growth | ₹999/month | 1 institute, 500 students |
-| Pro | ₹1999/month | Unlimited students + reports |
+CoachPro follows a few core principles throughout the application:
+
+* Every institute's data remains completely isolated from every other institute.
+* Security and reliability are prioritized over rapid feature additions.
+* The interface should remain simple enough for non-technical coaching owners.
+* Common daily tasks should require as few clicks as possible.
+* Features should solve real operational problems rather than add unnecessary complexity.
+
+---
+
+## Technology Stack
+
+* React
+* TypeScript
+* Vite
+* Supabase
+* PostgreSQL
+* Tailwind CSS
+
+---
+
+## Current Development Status
+
+CoachPro is currently under active development. The primary focus is building a production-ready SaaS foundation, including:
+
+* Authentication
+* Multi-tenancy
+* Row-Level Security (RLS)
+* Core student, attendance, and fee workflows
+
+Once the foundation is complete, additional features such as subscriptions, payments, advanced reporting, and customer-facing portals will be introduced.
+
+---
+
+## Long-Term Goal
+
+CoachPro aims to become a trusted business platform for coaching institutes by providing a scalable, secure, and continuously improving product that grows alongside its customers.
