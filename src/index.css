@@ -96,3 +96,15 @@
 .animate-fade-in { animation: fade-in 0.3s cubic-bezier(0.16,1,0.3,1); }
 
 @media (max-width: 768px) { body { padding-bottom: 72px; } }
+
+
+/* ── Auth input ─────────────────────────────────────────────────── */
+.auth-input {
+  @apply w-full rounded-xl border border-slate-200 dark:border-slate-600
+         bg-white dark:bg-slate-700/50
+         text-slate-900 dark:text-white
+         placeholder-slate-400 dark:placeholder-slate-500
+         px-3.5 py-2.5 text-sm
+         focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent
+         transition-colors;
+}

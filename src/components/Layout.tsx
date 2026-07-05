@@ -1,5 +1,6 @@
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { useTheme } from '../hooks/useTheme'
+import { useAuth } from '../context/AuthContext'
 
 const navItems = [
   { to: '/',           label: 'Dashboard',  icon: <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM14 15a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1h-4a1 1 0 01-1-1v-5z"/></svg> },
@@ -24,6 +25,30 @@ function ThemeToggle() {
         : <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
       }
     </button>
+  )
+}
+
+function SidebarFooter() {
+  const { org, logout } = useAuth()
+  return (
+    <div className="px-5 py-4">
+      <div className="rounded-xl px-3 py-2.5" style={{ background: '#1E293B' }}>
+        <div className="flex items-center justify-between mb-2">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold text-white truncate">{org?.name ?? 'CoachPro'}</p>
+            <p className="text-[10px] mt-0.5" style={{ color: '#475569' }}>v2.0 · {org?.plan ?? 'free'}</p>
+          </div>
+          <ThemeToggle />
+        </div>
+        <button
+          onClick={() => logout()}
+          className="w-full text-left text-[10px] font-medium transition-colors hover:text-red-400"
+          style={{ color: '#475569' }}
+        >
+          Sign out →
+        </button>
+      </div>
+    </div>
   )
 }
 
@@ -54,15 +79,7 @@ export default function Layout() {
             </NavLink>
           ))}
         </nav>
-        <div className="px-5 py-4">
-          <div className="rounded-xl px-3 py-2.5 flex items-center justify-between" style={{ background: '#1E293B' }}>
-            <div>
-              <p className="text-[11px] font-medium" style={{ color: '#475569' }}>CoachPro · v2.0</p>
-              <p className="text-[10px] mt-0.5" style={{ color: '#334155' }}>© 2025 All rights reserved</p>
-            </div>
-            <ThemeToggle />
-          </div>
-        </div>
+        <SidebarFooter />
       </aside>
 
       {/* Main */}
