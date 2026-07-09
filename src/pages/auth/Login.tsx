@@ -1,22 +1,37 @@
-import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useState, useEffect, type FormEvent } from 'react'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 
 export default function Login() {
   const { login, error, clearError, status } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
 
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
   const [loading,  setLoading]  = useState(false)
 
+  // Drive navigation from status — not from the login() return value.
+  // This handles both: post-login redirect AND returning users with a
+  // live session who land on /login (e.g. hitting back after logout).
+  useEffect(() => {
+    console.log('[LOGIN] status changed →', status)
+    if (status === 'authenticated') {
+      const from = (location.state as { from?: { pathname: string } } | null)
+        ?.from?.pathname ?? '/'
+      console.log('[LOGIN] navigating to', from)
+      navigate(from, { replace: true })
+    }
+  }, [status, navigate, location.state])
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     clearError()
     setLoading(true)
-    await login(email.trim(), password)
+    console.log('[LOGIN] handleSubmit — calling login()')
+    const ok = await login(email.trim(), password)
+    console.log('[LOGIN] login() returned', ok, '| status at this point:', status)
     setLoading(false)
-    // navigation handled by ProtectedRoute once status becomes 'authenticated'
   }
 
   return (
@@ -62,7 +77,7 @@ export default function Login() {
   )
 }
 
-// ─── Shared sub-components ────────────────────────────────────────────────────
+// ─── Shared sub-components (reused by Signup, ResetPassword, NoOrg) ──────────
 
 export function AuthShell({
   title, subtitle, children,
@@ -70,7 +85,6 @@ export function AuthShell({
   return (
     <div className="min-h-dvh flex items-center justify-center bg-slate-100 dark:bg-slate-950 px-4">
       <div className="w-full max-w-sm">
-        {/* Logo */}
         <div className="flex items-center gap-3 mb-8 justify-center">
           <div
             className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
@@ -117,6 +131,3 @@ export function ErrorBanner({ message }: { message: string }) {
     </div>
   )
 }
-
-// Tailwind class used across auth pages — add to index.css instead of repeating
-// .auth-input is defined in index.css

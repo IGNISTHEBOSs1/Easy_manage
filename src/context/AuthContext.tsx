@@ -47,16 +47,15 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 async function fetchOrg(userId: string): Promise<OrgContext | null> {
-  // get_my_org_id() works via RLS — we just query organizations
-  // which is scoped by the orgs_select_own policy
+  console.log('[AUTH] fetchOrg() called', { userId })
   const { data, error } = await supabase
     .from('organizations')
     .select('id, name, slug, plan, logo_url')
     .limit(1)
     .maybeSingle()
 
+  console.log('[AUTH] fetchOrg() response', { data, error: error ?? null })
   if (error) {
-    // PGRST116 = no rows — user has no org yet
     if (error.code === 'PGRST116') return null
     throw error
   }
@@ -99,20 +98,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // ── Resolve session → org on mount + auth state changes ──────────
   const resolveSession = useCallback(async (session: Session | null) => {
+    console.log('[AUTH] resolveSession called', { userId: session?.user?.id ?? null })
     if (!session) {
+      console.log('[AUTH] resolveSession → no session, setting unauthenticated')
       set({ status: 'unauthenticated', user: null, org: null, error: null })
       return
     }
     try {
       const org = await fetchOrg(session.user.id)
+      console.log('[AUTH] resolveSession → fetchOrg result', { org })
+      const newStatus = org ? 'authenticated' : 'no_org'
+      console.log('[AUTH] resolveSession → setting status', newStatus)
       set({
-        status: org ? 'authenticated' : 'no_org',
+        status: newStatus,
         user:   session.user,
         org,
         error:  null,
       })
     } catch (e) {
-      // Org fetch failed — still authenticated, surface the error
+      console.log('[AUTH] resolveSession → fetchOrg threw', extractError(e))
       set({ status: 'authenticated', user: session.user, org: null, error: extractError(e) })
     }
   }, [set])
@@ -124,20 +128,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // for subsequent events. No getSession() needed.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        console.log('[AUTH] onAuthStateChange', event, { userId: session?.user?.id ?? null })
         if (event === 'INITIAL_SESSION') {
-          // Fires on mount — session is null if logged out, populated if returning user
           resolveSession(session)
         } else if (event === 'SIGNED_IN') {
           resolveSession(session)
         } else if (event === 'SIGNED_OUT') {
           set({ status: 'unauthenticated', user: null, org: null, error: null })
         } else if (event === 'TOKEN_REFRESHED') {
-          // Token refreshed silently — no org re-fetch needed, user/session unchanged
           if (session) set({ user: session.user })
         } else if (event === 'USER_UPDATED') {
           if (session) set({ user: session.user })
         } else if (event === 'PASSWORD_RECOVERY') {
-          // Session is valid — let them reach the reset form
           if (session) set({ status: 'authenticated', user: session.user })
         }
       }
@@ -148,9 +150,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // ── Actions ──────────────────────────────────────────────────────
 
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
+    console.log('[AUTH] login() called')
     set({ error: null })
     const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) { set({ error: (error as AuthError).message }); return false }
+    if (error) {
+      console.log('[AUTH] login() signInWithPassword error', error.message)
+      set({ error: (error as AuthError).message }); return false
+    }
+    console.log('[AUTH] login() signInWithPassword success — waiting for onAuthStateChange SIGNED_IN')
     return true
   }, [set])
 
