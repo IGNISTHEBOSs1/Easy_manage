@@ -1,24 +1,22 @@
 import { useState, type FormEvent } from 'react'
-import { supabase } from '../../lib/supabase'
+import { supabase, extractError } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { AuthShell, Field, ErrorBanner } from './Login'
 
-// Shown when a user is authenticated (valid session) but has no org row.
-// This happens when signup succeeded but create_organization_for_user failed.
-// Lets them retry without logging out and back in.
-
 export default function NoOrg() {
-  const { user, signup, logout, error, clearError, refreshOrg } = useAuth()
+  const { user, logout, error: ctxError, clearError, refreshOrg } = useAuth()
   const [instituteName, setInstituteName] = useState('')
   const [loading,       setLoading]       = useState(false)
+  const [localError,    setLocalError]    = useState<string | null>(null)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!user || !instituteName.trim()) return
     clearError()
+    setLocalError(null)
     setLoading(true)
     try {
-      const { data, error: rpcErr } = await supabase
+      const { error: rpcErr } = await supabase
         .rpc('create_organization_for_user', {
           p_user_id:  user.id,
           p_org_name: instituteName.trim(),
@@ -27,11 +25,13 @@ export default function NoOrg() {
       if (rpcErr) throw rpcErr
       await refreshOrg()
     } catch (e) {
-      // error surfaced via AuthContext
+      setLocalError(extractError(e))
     } finally {
       setLoading(false)
     }
   }
+
+  const displayError = localError ?? ctxError
 
   return (
     <AuthShell title="Almost there" subtitle="Finish setting up your institute">
@@ -49,7 +49,7 @@ export default function NoOrg() {
           />
         </Field>
 
-        {error && <ErrorBanner message={error} />}
+        {displayError && <ErrorBanner message={displayError} />}
 
         <button type="submit" disabled={loading} className="btn-primary w-full py-2.5">
           {loading ? <span className="spinner w-4 h-4 mx-auto" /> : 'Set up institute'}

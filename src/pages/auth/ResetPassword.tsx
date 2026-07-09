@@ -15,9 +15,9 @@ export function ForgotPassword() {
     e.preventDefault()
     clearError()
     setLoading(true)
-    await resetPassword(email.trim())
+    const ok = await resetPassword(email.trim())
     setLoading(false)
-    if (!error) setSent(true)
+    if (ok) setSent(true)
   }
 
   if (sent && !error) {
@@ -79,6 +79,39 @@ export function ResetPassword() {
   const [done,     setDone]       = useState(false)
   const [localErr, setLocalErr]   = useState<string | null>(null)
 
+  // Fix 3: guard against direct navigation with no session.
+  // PASSWORD_RECOVERY event sets status to 'authenticated' in AuthContext.
+  // Any other status here means the link is expired or was never clicked.
+  if (status === 'initialising') {
+    return (
+      <AuthShell title="Set new password" subtitle="Checking your reset link…">
+        <div className="flex justify-center py-4">
+          <span className="spinner text-brand-500" />
+        </div>
+      </AuthShell>
+    )
+  }
+
+  if (status !== 'authenticated') {
+    return (
+      <AuthShell title="Link expired" subtitle="This reset link is no longer valid">
+        <div className="text-center space-y-4">
+          <div className="w-12 h-12 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center mx-auto">
+            <svg className="w-6 h-6 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+          </div>
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            Password reset links expire after 1 hour. Request a new one to continue.
+          </p>
+          <Link to="/forgot-password" className="btn-primary w-full block text-center py-2.5">
+            Request new link
+          </Link>
+        </div>
+      </AuthShell>
+    )
+  }
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     clearError()
@@ -88,9 +121,9 @@ export function ResetPassword() {
     if (password !== confirm) { setLocalErr('Passwords do not match.'); return }
 
     setLoading(true)
-    await updatePassword(password)
+    const ok = await updatePassword(password)
     setLoading(false)
-    if (!error) setDone(true)
+    if (ok) setDone(true)
   }
 
   if (done && !error) {

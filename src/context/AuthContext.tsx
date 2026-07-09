@@ -29,11 +29,11 @@ export interface AuthState {
 }
 
 export interface AuthActions {
-  login:         (email: string, password: string) => Promise<void>
-  signup:        (email: string, password: string, instituteName: string) => Promise<void>
+  login:         (email: string, password: string) => Promise<boolean>
+  signup:        (email: string, password: string, instituteName: string) => Promise<boolean>
   logout:        () => Promise<void>
-  resetPassword: (email: string) => Promise<void>
-  updatePassword:(password: string) => Promise<void>
+  resetPassword: (email: string) => Promise<boolean>
+  updatePassword:(password: string) => Promise<boolean>
   clearError:    () => void
   refreshOrg:    () => Promise<void>
 }
@@ -118,36 +118,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [set])
 
   useEffect(() => {
-    // Get current session immediately (no round-trip for returning users)
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      resolveSession(session)
-    })
-
-    // Subscribe to future changes (login, logout, token refresh)
+    // Supabase v2 recommended pattern (per official docs React Context example):
+    // onAuthStateChange alone — INITIAL_SESSION fires on mount with the current
+    // session from localStorage (no network round-trip), then SIGNED_IN/OUT etc.
+    // for subsequent events. No getSession() needed.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => { resolveSession(session) }
+      (event, session) => {
+        if (event === 'INITIAL_SESSION') {
+          // Fires on mount — session is null if logged out, populated if returning user
+          resolveSession(session)
+        } else if (event === 'SIGNED_IN') {
+          resolveSession(session)
+        } else if (event === 'SIGNED_OUT') {
+          set({ status: 'unauthenticated', user: null, org: null, error: null })
+        } else if (event === 'TOKEN_REFRESHED') {
+          // Token refreshed silently — no org re-fetch needed, user/session unchanged
+          if (session) set({ user: session.user })
+        } else if (event === 'USER_UPDATED') {
+          if (session) set({ user: session.user })
+        } else if (event === 'PASSWORD_RECOVERY') {
+          // Session is valid — let them reach the reset form
+          if (session) set({ status: 'authenticated', user: session.user })
+        }
+      }
     )
     return () => subscription.unsubscribe()
-  }, [resolveSession])
+  }, [resolveSession, set])
 
   // ── Actions ──────────────────────────────────────────────────────
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     set({ error: null })
     const { error } = await supabase.auth.signInWithPassword({ email, password })
-    // onAuthStateChange handles the state update on success
-    if (error) set({ error: (error as AuthError).message })
+    if (error) { set({ error: (error as AuthError).message }); return false }
+    return true
   }, [set])
 
   const signup = useCallback(async (
     email: string,
     password: string,
     instituteName: string,
-  ) => {
+  ): Promise<boolean> => {
     set({ error: null })
 
     const { data, error: signUpError } = await supabase.auth.signUp({ email, password })
-    if (signUpError) { set({ error: signUpError.message }); return }
+    if (signUpError) { set({ error: signUpError.message }); return false }
 
     const user = data.session?.user ?? data.user
     if (!user) {
@@ -156,7 +171,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         status: 'unauthenticated',
         error:  'Check your email and click the confirmation link, then log in.',
       })
-      return
+      // Return true — this is a success path, not a failure
+      return true
     }
 
     // Atomic org creation — if this fails the user exists in auth
@@ -164,6 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const org = await createOrg(user.id, instituteName)
       set({ status: 'authenticated', user, org, error: null })
+      return true
     } catch (e) {
       set({
         status: 'no_org',
@@ -171,6 +188,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         org:   null,
         error: `Account created but institute setup failed: ${extractError(e)}. Please log in again to retry.`,
       })
+      return false
     }
   }, [set])
 
@@ -179,18 +197,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // onAuthStateChange fires and sets unauthenticated
   }, [])
 
-  const resetPassword = useCallback(async (email: string) => {
+  const resetPassword = useCallback(async (email: string): Promise<boolean> => {
     set({ error: null })
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/reset-password`,
     })
-    if (error) set({ error: error.message })
+    if (error) { set({ error: error.message }); return false }
+    return true
   }, [set])
 
-  const updatePassword = useCallback(async (password: string) => {
+  const updatePassword = useCallback(async (password: string): Promise<boolean> => {
     set({ error: null })
     const { error } = await supabase.auth.updateUser({ password })
-    if (error) set({ error: error.message })
+    if (error) { set({ error: error.message }); return false }
+    return true
   }, [set])
 
   const clearError = useCallback(() => set({ error: null }), [set])

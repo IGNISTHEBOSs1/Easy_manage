@@ -33,10 +33,9 @@ export default function Signup() {
     }
 
     setLoading(true)
-    await signup(email.trim(), password, instituteName.trim())
+    const ok = await signup(email.trim(), password, instituteName.trim())
     setLoading(false)
-    // If no error after signup, mark done (handles email-confirm flow)
-    if (!error) setDone(true)
+    if (ok) setDone(true)
   }
 
   if (done && !error) {
