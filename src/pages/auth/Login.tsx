@@ -15,11 +15,9 @@ export default function Login() {
   // This handles both: post-login redirect AND returning users with a
   // live session who land on /login (e.g. hitting back after logout).
   useEffect(() => {
-    console.log('[LOGIN] status changed →', status)
     if (status === 'authenticated') {
       const from = (location.state as { from?: { pathname: string } } | null)
         ?.from?.pathname ?? '/'
-      console.log('[LOGIN] navigating to', from)
       navigate(from, { replace: true })
     }
   }, [status, navigate, location.state])
@@ -28,9 +26,7 @@ export default function Login() {
     e.preventDefault()
     clearError()
     setLoading(true)
-    console.log('[LOGIN] handleSubmit — calling login()')
     const ok = await login(email.trim(), password)
-    console.log('[LOGIN] login() returned', ok, '| status at this point:', status)
     setLoading(false)
   }
 

@@ -4,6 +4,7 @@ import {
   getFees, computeStudentRisks, extractError, type Student, type Batch, type StudentRisk,
 } from '../lib/supabase'
 import Toast, { useToast } from '../components/Toast'
+import { useAuth } from '../context/AuthContext'
 
 type RiskLabel = StudentRisk['risk_label']
 function RiskBadge({ label }: { label: RiskLabel }) {
@@ -29,6 +30,7 @@ export default function Students() {
   const [form,     setForm]     = useState({ name: '', phone: '', batch_id: '' })
   const [newBatch, setNewBatch] = useState({ name: '', timing: '' })
   const { toast, show, hide } = useToast()
+  const { org } = useAuth()
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -54,7 +56,7 @@ export default function Students() {
     if (!name || !phone || !form.batch_id) return
     if (phone.length !== 10 || !/^\d+$/.test(phone)) { show('Phone must be exactly 10 digits', 'error'); return }
     setSaving(true)
-    try { await addStudent({ name, phone, batch_id: form.batch_id }); setForm(f => ({ ...f, name: '', phone: '' })); setShowForm(false); show('Student added ✓'); await load() }
+    try { await addStudent({ name, phone, batch_id: form.batch_id }, org!.id); setForm(f => ({ ...f, name: '', phone: '' })); setShowForm(false); show('Student added ✓'); await load() }
     catch (e) { show(`Failed: ${extractError(e)}`, 'error') }
     finally { setSaving(false) }
   }
@@ -67,7 +69,7 @@ export default function Students() {
 
   const handleAddBatch = async () => {
     if (!newBatch.name.trim()) return
-    try { await addBatch({ name: newBatch.name.trim(), timing: newBatch.timing.trim() }); setNewBatch({ name: '', timing: '' }); show('Batch created ✓'); await load() }
+    try { await addBatch({ name: newBatch.name.trim(), timing: newBatch.timing.trim() }, org!.id); setNewBatch({ name: '', timing: '' }); show('Batch created ✓'); await load() }
     catch (e) { show(`Failed: ${extractError(e)}`, 'error') }
   }
 

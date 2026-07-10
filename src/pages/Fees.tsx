@@ -7,6 +7,7 @@ import {
   type PaymentMethod, type Student, type Batch,
 } from '../lib/supabase'
 import Toast, { useToast } from '../components/Toast'
+import { useAuth } from '../context/AuthContext'
 
 // ─── jsPDF invoice ────────────────────────────────────────────────────────────
 async function generateInvoicePDF(fee: Fee): Promise<void> {
@@ -272,6 +273,7 @@ export default function Fees() {
   const [balances,setBalances]=useState<Record<string,FeeBalance>>({}); const [balanceLoading,setBalanceLoading]=useState<Set<string>>(new Set()); const [expandedIds,setExpandedIds]=useState<Set<string>>(new Set())
   const [form,setForm]=useState({student_id:'',amount:'',due_date:''})
   const {toast,show,hide}=useToast()
+  const { org } = useAuth()
 
   const loadAll=useCallback(async()=>{
     setLoading(true)
@@ -298,7 +300,7 @@ export default function Fees() {
 
   const handleAdd=async()=>{
     if(!form.student_id||!form.amount||!form.due_date) return; setSaving(true)
-    try { await addFee({student_id:form.student_id,total_amount:Number(form.amount),due_date:form.due_date}); setForm({student_id:'',amount:'',due_date:''}); setShowForm(false); show('Fee assigned ✓'); await loadAll() }
+    try { await addFee({student_id:form.student_id,total_amount:Number(form.amount),due_date:form.due_date}, org!.id); setForm({student_id:'',amount:'',due_date:''}); setShowForm(false); show('Fee assigned ✓'); await loadAll() }
     catch(e) { show(extractError(e),'error') } finally { setSaving(false) }
   }
 

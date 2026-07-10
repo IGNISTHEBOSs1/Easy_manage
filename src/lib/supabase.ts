@@ -27,7 +27,7 @@ export async function checkConnection(): Promise<string | null> {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface Batch {
-  id: string; name: string; timing: string; created_at: string
+  id: string; name: string; timing: string; organization_id?: string; created_at: string
 }
 
 export interface Student {
@@ -137,8 +137,10 @@ export const getBatches = async (): Promise<Batch[]> => {
   const { data, error } = await supabase.from('batches').select('*').order('created_at', { ascending: true })
   if (error) throw error; return data ?? []
 }
-export const addBatch = async (batch: Pick<Batch, 'name' | 'timing'>): Promise<Batch> => {
-  const { data, error } = await supabase.from('batches').insert(batch).select().single()
+export const addBatch = async (batch: Pick<Batch, 'name' | 'timing'>, organizationId: string): Promise<Batch> => {
+  const { data, error } = await supabase.from('batches')
+    .insert({ ...batch, organization_id: organizationId })
+    .select().single()
   if (error) throw error; return data
 }
 export const deleteBatch = async (id: string): Promise<void> => {
@@ -155,11 +157,11 @@ export const getStudentsByBatch = async (batchId: string): Promise<Student[]> =>
   const { data, error } = await supabase.from('students').select('*, batches(id, name, timing)').eq('batch_id', batchId).order('name', { ascending: true })
   if (error) throw error; return data ?? []
 }
-export const addStudent = async (student: Pick<Student, 'name' | 'phone' | 'batch_id'>): Promise<Student> => {
+export const addStudent = async (student: Pick<Student, 'name' | 'phone' | 'batch_id'>, organizationId: string): Promise<Student> => {
   const { data: batch, error: be } = await supabase.from('batches').select('name').eq('id', student.batch_id).single()
   if (be) throw be
   const { data, error } = await supabase.from('students')
-    .insert({ name: student.name, phone: student.phone, batch_id: student.batch_id, batch_name_legacy: batch.name })
+    .insert({ name: student.name, phone: student.phone, batch_id: student.batch_id, batch_name_legacy: batch.name, organization_id: organizationId })
     .select('*, batches(id, name, timing)').single()
   if (error) throw error; return data
 }
@@ -199,8 +201,10 @@ export const getFeesByStudent = async (studentId: string): Promise<Fee[]> => {
   const { data, error } = await supabase.from('fees').select('*, students(id, name, phone, batch_id, batch_name_legacy)').eq('student_id', studentId).order('due_date', { ascending: false })
   if (error) throw error; return data ?? []
 }
-export const addFee = async (fee: Pick<Fee, 'student_id' | 'total_amount' | 'due_date'>): Promise<Fee> => {
-  const { data, error } = await supabase.from('fees').insert({ student_id: fee.student_id, total_amount: fee.total_amount, due_date: fee.due_date, status: 'pending' }).select().single()
+export const addFee = async (fee: Pick<Fee, 'student_id' | 'total_amount' | 'due_date'>, organizationId: string): Promise<Fee> => {
+  const { data, error } = await supabase.from('fees')
+    .insert({ student_id: fee.student_id, total_amount: fee.total_amount, due_date: fee.due_date, status: 'pending', organization_id: organizationId })
+    .select().single()
   if (error) throw error; return data
 }
 export const updateFeeStatus = async (id: string, status: FeeStatus): Promise<void> => {
@@ -272,9 +276,13 @@ export const getAttendanceByDate = async (date: string): Promise<Attendance[]> =
   const { data, error } = await supabase.from('attendance').select('*, students(id, name, phone, batch_id, batch_name_legacy)').eq('date', date)
   if (error) throw error; return data ?? []
 }
+// Routes through the server-side RPC which derives organization_id from the
+// student record — avoids inserting attendance with organization_id = NULL.
 export const upsertAttendance = async (records: Array<{ student_id: string; date: string; status: 'present' | 'absent' }>): Promise<void> => {
-  const { error } = await supabase.from('attendance').upsert(records, { onConflict: 'student_id,date' })
-  if (error) throw error
+  const result = await bulkMarkAttendance(records)
+  if (result.failed > 0 && result.inserted === 0 && result.updated === 0) {
+    throw new Error(`Attendance save failed (${result.failed} records rejected)`)
+  }
 }
 
 // ─── Expenses ─────────────────────────────────────────────────────────────────
@@ -288,8 +296,8 @@ export const getExpenses = async (year?: number, month?: number): Promise<Expens
   const { data, error } = await query.order('date', { ascending: false })
   if (error) throw error; return data ?? []
 }
-export const addExpense = async (exp: Pick<Expense, 'title' | 'amount' | 'category' | 'date' | 'notes'>): Promise<Expense> => {
-  const { data, error } = await supabase.from('expenses').insert(exp).select().single()
+export const addExpense = async (exp: Pick<Expense, 'title' | 'amount' | 'category' | 'date' | 'notes'>, organizationId: string): Promise<Expense> => {
+  const { data, error } = await supabase.from('expenses').insert({ ...exp, organization_id: organizationId }).select().single()
   if (error) throw error; return data
 }
 export const deleteExpense = async (id: string): Promise<void> => {

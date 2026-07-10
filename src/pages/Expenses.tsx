@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { getExpenses, addExpense, deleteExpense, extractError, type Expense, type ExpenseCategory } from '../lib/supabase'
 import Toast, { useToast } from '../components/Toast'
+import { useAuth } from '../context/AuthContext'
 
 const CATEGORIES: { value: ExpenseCategory; label: string; color: string }[] = [
   { value:'rent',        label:'Rent',        color:'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400' },
@@ -27,6 +28,7 @@ export default function ExpensesPage() {
     title:'', amount:'', category:'other', date:now.toISOString().split('T')[0], notes:'',
   })
   const { toast, show, hide } = useToast()
+  const { org } = useAuth()
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -41,7 +43,7 @@ export default function ExpensesPage() {
     if (!form.title.trim()||!form.amount||!form.date) return
     setSaving(true)
     try {
-      await addExpense({ title:form.title.trim(), amount:Number(form.amount), category:form.category, date:form.date, notes:form.notes.trim()||null })
+      await addExpense({ title:form.title.trim(), amount:Number(form.amount), category:form.category, date:form.date, notes:form.notes.trim()||null }, org!.id)
       setForm({ title:'', amount:'', category:'other', date:now.toISOString().split('T')[0], notes:'' })
       setShowForm(false); show('Expense added ✓'); await load()
     } catch(e) { show(extractError(e),'error') }
