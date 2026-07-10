@@ -9,7 +9,6 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
   const { status } = useAuth()
   const location   = useLocation()
 
-  console.log('[PROTECTED] rendering with status:', status, '| path:', location.pathname)
 
   if (status === 'initialising') {
     // Identical to the existing "Connecting to CoachPro…" spinner in App.tsx

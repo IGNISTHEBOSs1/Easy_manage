@@ -47,14 +47,12 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 async function fetchOrg(userId: string): Promise<OrgContext | null> {
-  console.log('[AUTH] fetchOrg() called', { userId })
   const { data, error } = await supabase
     .from('organizations')
     .select('id, name, slug, plan, logo_url')
     .limit(1)
     .maybeSingle()
 
-  console.log('[AUTH] fetchOrg() response', { data, error: error ?? null })
   if (error) {
     if (error.code === 'PGRST116') return null
     throw error
@@ -98,17 +96,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // ── Resolve session → org on mount + auth state changes ──────────
   const resolveSession = useCallback(async (session: Session | null) => {
-    console.log('[AUTH] resolveSession called', { userId: session?.user?.id ?? null })
     if (!session) {
-      console.log('[AUTH] resolveSession → no session, setting unauthenticated')
       set({ status: 'unauthenticated', user: null, org: null, error: null })
       return
     }
     try {
       const org = await fetchOrg(session.user.id)
-      console.log('[AUTH] resolveSession → fetchOrg result', { org })
       const newStatus = org ? 'authenticated' : 'no_org'
-      console.log('[AUTH] resolveSession → setting status', newStatus)
       set({
         status: newStatus,
         user:   session.user,
@@ -116,7 +110,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         error:  null,
       })
     } catch (e) {
-      console.log('[AUTH] resolveSession → fetchOrg threw', extractError(e))
       set({ status: 'authenticated', user: session.user, org: null, error: extractError(e) })
     }
   }, [set])
@@ -128,7 +121,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // for subsequent events. No getSession() needed.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        console.log('[AUTH] onAuthStateChange', event, { userId: session?.user?.id ?? null })
         if (event === 'INITIAL_SESSION') {
           resolveSession(session)
         } else if (event === 'SIGNED_IN') {
@@ -150,14 +142,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // ── Actions ──────────────────────────────────────────────────────
 
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
-    console.log('[AUTH] login() called')
     set({ error: null })
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
-      console.log('[AUTH] login() signInWithPassword error', error.message)
       set({ error: (error as AuthError).message }); return false
     }
-    console.log('[AUTH] login() signInWithPassword success — waiting for onAuthStateChange SIGNED_IN')
     return true
   }, [set])
 
